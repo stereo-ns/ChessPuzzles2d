@@ -1,0 +1,16 @@
+<Project Sdk="Godot.NET.Sdk/4.5.2">
+  <PropertyGroup>
+    <!-- REŠENJE ZA ŠABLON: Prelazimo na net9.0 da ispratimo Android 15+ standarde šablona -->
+    <TargetFramework>net9.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    
+    <!-- ŠTIT PROTIV CRVENILA: Sve privremene Android fajlove bacamo u 
+         izolovani podfolder, čime tvoj VSCodium radni prostor na desktopu ostaje u savršenom miru! -->
+    <BaseIntermediateOutputPath Condition=" '$(GodotTargetPlatform)' == 'android' ">obj/android/</BaseIntermediateOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- NuGet paket koji .NET 9 podržava fabrički čist -->
+    <PackageReference Include="ChessDotNet" Version="1.0.0" />
+  </ItemGroup>
+</Project>

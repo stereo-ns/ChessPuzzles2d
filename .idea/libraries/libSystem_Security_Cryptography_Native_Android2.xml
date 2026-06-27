@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="libSystem.Security.Cryptography.Native.Android2">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/.godot/mono/temp/bin/ExportDebug/android-arm/libSystem.Security.Cryptography.Native.Android.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

@@ -1,0 +1,18 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+# .NET / C# privremeni folderi i kompajlerski izlazi
+bin/
+obj/
+*.suo
+*.user
+*.sln.docstates
+
+# Android izvoz i ključevi (bezbednost)
+*.apk
+*.idsig
+*.keystore
+
+# VSCodium / VSCode lokalna podešavanja
+.vscode/
+.history/
