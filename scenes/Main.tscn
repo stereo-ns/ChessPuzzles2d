@@ -58,6 +58,7 @@ autowrap_mode = 2
 
 [node name="DifficultySlider" type="HSlider" parent="MainLayout/BottomPanel"]
 layout_mode = 2
+max_value = 20.0
 
 [node name="DifficultyLabel" type="Label" parent="MainLayout/BottomPanel"]
 layout_mode = 2

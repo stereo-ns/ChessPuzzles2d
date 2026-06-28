@@ -18,8 +18,10 @@ namespace ChessPuzzles2d.Views
         }
 
         public void Render(ChessBoardState boardState, int selectedRow, int selectedCol, float tileSize,
-                   int botFromRow = -1, int botFromCol = -1, int botToRow = -1, int botToCol = -1)
+                           int botFromRow = -1, int botFromCol = -1, int botToRow = -1, int botToCol = -1)
         {
+            if (_grid == null) return;
+
             HashSet<string> validSquares = new HashSet<string>();
             if (selectedRow != -1 && selectedCol != -1)
             {
@@ -36,20 +38,51 @@ namespace ChessPuzzles2d.Views
             }
 
             int childIndex = 0;
-            int totalChildren = _grid.GetChildCount();
 
             for (int r = 0; r < 8; r++)
             {
                 for (int c = 0; c < 8; c++)
                 {
-                    Control cell;
+                    Control cell = null;
 
-                    if (childIndex < totalChildren)
+                    // Ako dete postoji na ovom indeksu, proveravamo njegovu legitimnost
+                    if (childIndex < _grid.GetChildCount())
                     {
-                        cell = _grid.GetChild<Control>(childIndex);
+                        var potentialCell = _grid.GetChild(childIndex);
+
+                        // 🚀 PAMETNI UKLONITELJ: Ako uleti lažni čvor (npr. `@ColorRect` ili promo overlay),
+                        // mi ga ne preskačemo niti petljamo sa c--, već ga hirurški izbacujemo iz kontejnera
+                        // i puštamo tvoj fabrički 'else' da na tom istom mestu stvori pravo šahovsko polje!
+                        if (potentialCell == null || !potentialCell.HasNode("Background") || !potentialCell.HasNode("Piece"))
+                        {
+                            potentialCell?.QueueFree();
+                            _grid.RemoveChild(potentialCell);
+
+                            // Stvaramo novo legitimno polje na licu mesta
+                            cell = new Control();
+                            cell.Name = $"Square_{r}_{c}";
+
+                            ColorRect bg = new ColorRect();
+                            bg.Name = "Background";
+                            cell.AddChild(bg);
+
+                            TextureRect pieceTex = new TextureRect();
+                            pieceTex.Name = "Piece";
+                            pieceTex.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+                            pieceTex.AnchorsPreset = (int)Control.LayoutPreset.FullRect;
+                            cell.AddChild(pieceTex);
+
+                            _grid.AddChild(cell);
+                            _grid.MoveChild(cell, childIndex); // Zaključavamo ga na tačan indeks u kontejneru
+                        }
+                        else
+                        {
+                            cell = potentialCell as Control;
+                        }
                     }
                     else
                     {
+                        // TVOJ FABRIČKI MEHANIZAM KREACIJE: Ako polja nema, pravimo ga od nule na startu!
                         cell = new Control();
                         cell.Name = $"Square_{r}_{c}";
 
@@ -67,6 +100,7 @@ namespace ChessPuzzles2d.Views
                     }
                     childIndex++;
 
+                    // Odavde je sve 100% bezbedno jer su čvorovi dokazano tu
                     var background = cell.GetNode<ColorRect>("Background");
                     var pieceTexture = cell.GetNode<TextureRect>("Piece");
 
@@ -80,29 +114,24 @@ namespace ChessPuzzles2d.Views
 
                     string piece = boardState.GetPieceAt(r, c);
 
-                    // AFIRMATIVNI INDIKATORI: Čiste činjenice na nivou STRINGOVA bez jurenja indeksa!
                     bool isWhiteTurn = boardState.CurrentTurn == ChessDotNet.Player.White;
                     bool isBlackTurn = boardState.CurrentTurn == ChessDotNet.Player.Black;
 
                     bool isSquareEmpty = (piece == ".");
-
-                    // Figura je bela ako NIJE prazno polje I tekst je jednak svom velikom obliku
                     bool isWhitePiece = !isSquareEmpty && (piece == piece.ToUpper());
-                    // Figura je crna ako NIJE prazno polje I tekst je jednak svom malom obliku
                     bool isBlackPiece = !isSquareEmpty && (piece == piece.ToLower());
 
                     if (r == selectedRow && c == selectedCol)
                     {
-                        background.Color = new Color("#f7ec74"); // Žuta za tvoju selekciju
+                        background.Color = new Color("#f7ec74");
                     }
-                    // LICHESS TRAG POTEZA: Bojimo u plavičastu nijansu polja odakle je i gde je bot stigao
                     else if ((r == botFromRow && c == botFromCol) || (r == botToRow && c == botToCol))
                     {
-                        background.Color = new Color(0.15f, 0.45f, 0.68f, 0.4f); // Svetlo plava providna
+                        background.Color = new Color(0.15f, 0.45f, 0.68f, 0.4f); // Plavi Lichess trag
                     }
                     else if (validSquares.Contains($"{r},{c}") && ((isWhiteTurn && isBlackPiece) || (isBlackTurn && isWhitePiece)))
                     {
-                        background.Color = new Color(0.9f, 0.3f, 0.3f, 0.6f);
+                        background.Color = new Color(0.9f, 0.3f, 0.3f, 0.6f); // Crveni Lichess napad
                     }
                     else
                     {
@@ -119,7 +148,6 @@ namespace ChessPuzzles2d.Views
                         pieceTexture.Visible = true;
                     }
 
-                    // LICHESS TAČKICA SA GLATKIM CUBIC.OUT EASING-OM (Samo za dostupna prazna polja)
                     if (validSquares.Contains($"{r},{c}") && isSquareEmpty)
                     {
                         bool isNewDot = false;

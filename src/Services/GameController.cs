@@ -32,6 +32,9 @@ namespace ChessPuzzles2d.Services
         private int _selectedCol = -1;
         private int _botFromRow = -1, _botFromCol = -1;
         private int _botToRow = -1, _botToCol = -1;
+        int selectedSkill = 5;
+        private bool _isGameActive = false; // Na samom startu igra miruje i zaključana je!
+
 
         private float _currentTileSize = 81f;
 
@@ -62,13 +65,20 @@ namespace ChessPuzzles2d.Services
             // Inicijalizujemo slajder na startu igre
             if (DifficultySlider != null)
             {
-                DifficultySlider.MinValue = 0;   // Najlakši nivo
-                DifficultySlider.MaxValue = 20;  // Najteži nivo (Velemajstor)
-                DifficultySlider.Step = 1;      // Pomeranje za po 1 ceo broj
-
-                // Postavljamo fabrički default na Nivo 5!
+                DifficultySlider.MinValue = 0;
+                DifficultySlider.MaxValue = 20;
+                DifficultySlider.Step = 1;
                 DifficultySlider.Value = 5;
-                DifficultySlider.Editable = true; // Osiguravamo da igrač može da ga pomera
+                DifficultySlider.Editable = true;
+
+                // Kačimo čist delegat za promenu vrednosti
+                DifficultySlider.ValueChanged += OnSliderValueChanged;
+
+                // Postavljamo početni tekst čim se igra upali
+                if (DifficultyLabel != null)
+                {
+                    DifficultyLabel.Text = "Izabrana težina: Nivo 5";
+                }
             }
 
 
@@ -77,6 +87,13 @@ namespace ChessPuzzles2d.Services
 
             _windowManager.TriggerInitialResize();
             UpdateTurnLabelText(); // Odmah ispisuje ko prvi igra
+            _stockfishService = new StockfishService();
+            _stockfishService.StartEngine(5);
+            if (RestartButton != null)
+            {
+                RestartButton.Text = "KRENI IGRU"; // Menjamo tekst iz Restart u New Game mod
+                RestartButton.Visible = true;      // Prisno palimo vidljivost na startu ekrana!
+            }
         }
 
         public override void _ExitTree()
@@ -87,8 +104,13 @@ namespace ChessPuzzles2d.Services
 
         public override void _Input(InputEvent @event)
         {
-            _inputManager?.HandleInput(@event);
+            // ŠTIT: Ako igrač nije kliknuo na početak, _isGameActive je false i tabla potpuno ignoriše dodire!
+            if (_isGameActive)
+            {
+                _inputManager?.HandleInput(@event);
+            }
         }
+
 
         private void OnBoardResize(float tileSize)
         {
@@ -198,6 +220,7 @@ namespace ChessPuzzles2d.Services
 
         private void OnRestartButtonPressed()
         {
+            _isGameActive = true;
             // 1. Gasimo stari pozadinski Stockfish proces ako postoji od prošle partije
             _stockfishService?.StopEngine();
 
@@ -207,6 +230,8 @@ namespace ChessPuzzles2d.Services
             {
                 selectedSkill = (int)DifficultySlider.Value;
                 DifficultySlider.Editable = false; // Zaključavamo slajder tokom partije da nema varanja!
+                // DifficultySlider.ReleaseFocus();
+                // DifficultySlider.FocusMode = Control.FocusModeEnum.None;
             }
 
             // 3. Budimo novu šahovsku tablu u memoriji i palimo bota sa tačnim nivoom (0-20)
@@ -313,6 +338,13 @@ namespace ChessPuzzles2d.Services
                     RefreshDisplay();
                     UpdateTurnLabelText();
                 }).CallDeferred();
+            }
+        }
+        private void OnSliderValueChanged(double value)
+        {
+            if (DifficultyLabel != null)
+            {
+                DifficultyLabel.Text = $"Izabrana težina: Nivo {value}";
             }
         }
 
