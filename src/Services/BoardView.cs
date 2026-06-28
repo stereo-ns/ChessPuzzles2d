@@ -1,75 +1,128 @@
 using Godot;
-using System;
+using System.Collections.Generic;
 using ChessPuzzles2d.Core;
+using ChessPuzzles2d.Services;
+using ChessDotNet;
 
-namespace ChessPuzzles2d.Services
+namespace ChessPuzzles2d.Views
 {
     public class BoardView
     {
-        private readonly GridContainer _boardGrid;
-        private readonly PieceAtlasService _atlasService;
-        private readonly Color _lightColor = Color.FromHtml("f0d9b5");
-        private readonly Color _darkColor = Color.FromHtml("b58863");
-        private readonly Color _selectedColor = Color.FromHtml("baca44");
+        private readonly GridContainer _grid;
+        private readonly PieceAtlasService _atlas;
 
-        public BoardView(GridContainer boardGrid, PieceAtlasService atlasService)
+        public BoardView(GridContainer grid, PieceAtlasService atlas)
         {
-            _boardGrid = boardGrid ?? throw new ArgumentNullException(nameof(boardGrid));
-            _atlasService = atlasService ?? throw new ArgumentNullException(nameof(atlasService));
+            _grid = grid;
+            _atlas = atlas;
         }
 
         public void Render(ChessBoardState boardState, int selectedRow, int selectedCol, float tileSize)
         {
-            // Čistimo grid bez odlaganja frejmova
-            foreach (Node child in _boardGrid.GetChildren())
+            HashSet<string> validSquares = new HashSet<string>();
+            if (selectedRow != -1 && selectedCol != -1)
             {
-                // _boardGrid.RemoveChild(child);
-                child.QueueFree();
+                var validMoves = boardState.GetValidMovesForPiece(selectedRow, selectedCol);
+                if (validMoves != null)
+                {
+                    foreach (var pos in validMoves)
+                    {
+                        int r = 8 - pos.Rank;
+                        int c = (int)pos.File;
+                        validSquares.Add($"{r},{c}");
+                    }
+                }
             }
 
-            Vector2 tileMinSize = new Vector2(tileSize, tileSize);
+            int childIndex = 0;
+            int totalChildren = _grid.GetChildCount();
 
-            for (int row = 0; row < 8; row++)
+            for (int r = 0; r < 8; r++)
             {
-                for (int col = 0; col < 8; col++)
+                for (int c = 0; c < 8; c++)
                 {
-                    ColorRect tile = new ColorRect { MouseFilter = Control.MouseFilterEnum.Ignore };
+                    Control cell;
 
-                    // Bojenje selekcije
-                    if (row == selectedRow && col == selectedCol)
+                    if (childIndex < totalChildren)
                     {
-                        tile.Color = _selectedColor;
+                        cell = _grid.GetChild<Control>(childIndex);
                     }
                     else
                     {
-                        bool isLight = (row + col) % 2 == 0;
-                        tile.Color = isLight ? _lightColor : _darkColor;
+                        cell = new Control();
+                        cell.Name = $"Square_{r}_{c}";
+
+                        ColorRect bg = new ColorRect();
+                        bg.Name = "Background";
+                        cell.AddChild(bg);
+
+                        TextureRect pieceTex = new TextureRect();
+                        pieceTex.Name = "Piece";
+                        pieceTex.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+                        pieceTex.AnchorsPreset = (int)Control.LayoutPreset.FullRect;
+                        cell.AddChild(pieceTex);
+
+                        _grid.AddChild(cell);
                     }
+                    childIndex++;
 
-                    tile.CustomMinimumSize = tileMinSize;
-                    tile.SizeFlagsHorizontal = Control.SizeFlags.Expand | Control.SizeFlags.Fill;
-                    tile.SizeFlagsVertical = Control.SizeFlags.Expand | Control.SizeFlags.Fill;
-                    tile.Name = $"Tile_{row}_{col}";
+                    var background = cell.GetNode<ColorRect>("Background");
+                    var pieceTexture = cell.GetNode<TextureRect>("Piece");
 
-                    string pieceCode = boardState.GetPieceAt(row, col);
+                    // ZAKLJUČAVANJE DIMENZIJA: Prisiljavamo i polje i figuru na punu veličinu!
+                    cell.CustomMinimumSize = new Vector2(tileSize, tileSize);
+                    background.CustomMinimumSize = new Vector2(tileSize, tileSize);
+                    background.Size = new Vector2(tileSize, tileSize);
+                    pieceTexture.Size = new Vector2(tileSize, tileSize);
 
-                    if (pieceCode != "." && _atlasService.IsAtlasLoaded)
+                    ColorRect dot = cell.HasNode("LegalDot") ? cell.GetNode<ColorRect>("LegalDot") : null;
+                    Color baseColor = (r + c) % 2 == 0 ? new Color("#f0d9b5") : new Color("#b58863");
+
+                    string piece = boardState.GetPieceAt(r, c);
+
+                    if (r == selectedRow && c == selectedCol)
                     {
-                        TextureRect pieceIcon = new TextureRect
-                        {
-                            Texture = _atlasService.GetPieceTexture(pieceCode),
-                            MouseFilter = Control.MouseFilterEnum.Ignore,
-                            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                            StretchMode = TextureRect.StretchModeEnum.KeepCentered,
-                            CustomMinimumSize = tileMinSize,
-                            SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin,
-                            SizeFlagsVertical = Control.SizeFlags.ShrinkBegin,
-                            Position = Vector2.Zero
-                        };
-                        tile.AddChild(pieceIcon);
+                        background.Color = new Color("#f7ec74");
+                    }
+                    else if (validSquares.Contains($"{r},{c}") && piece != ".")
+                    {
+                        background.Color = new Color(0.9f, 0.3f, 0.3f, 0.6f); // Lichess napad
+                    }
+                    else
+                    {
+                        background.Color = baseColor;
                     }
 
-                    _boardGrid.AddChild(tile);
+                    if (piece != ".")
+                    {
+                        pieceTexture.Texture = _atlas.GetPieceTexture(piece);
+                        pieceTexture.Visible = true;
+                    }
+                    else
+                    {
+                        pieceTexture.Visible = false;
+                    }
+
+                    if (validSquares.Contains($"{r},{c}") && piece == ".")
+                    {
+                        if (dot == null)
+                        {
+                            dot = new ColorRect();
+                            dot.Name = "LegalDot";
+                            cell.AddChild(dot);
+                        }
+
+                        float dotSize = tileSize * 0.25f;
+                        dot.CustomMinimumSize = new Vector2(dotSize, dotSize);
+                        dot.Size = new Vector2(dotSize, dotSize);
+                        dot.Position = new Vector2((tileSize - dotSize) / 2f, (tileSize - dotSize) / 2f);
+                        dot.Color = new Color(0.1f, 0.1f, 0.1f, 0.4f); // Lichess tačkica
+                        dot.Visible = true;
+                    }
+                    else if (dot != null)
+                    {
+                        dot.Visible = false;
+                    }
                 }
             }
         }

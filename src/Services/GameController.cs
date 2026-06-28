@@ -1,6 +1,8 @@
 using Godot;
 using System;
 using ChessPuzzles2d.Core;
+using ChessPuzzles2d.Views;
+using System.Collections.Generic;
 
 namespace ChessPuzzles2d.Services
 {
@@ -216,9 +218,12 @@ namespace ChessPuzzles2d.Services
             }
             else
             {
+                // FIKS: Brišemo 'validMoves' sa kraja jer BoardView sve računa sam unutra!
                 _boardView.Render(_boardState, _selectedRow, _selectedCol, _currentTileSize);
             }
             BoardGrid.QueueRedraw();
         }
+
+
     }
 }
