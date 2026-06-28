@@ -14,6 +14,12 @@ DebugLabel = NodePath("MainLayout/BottomPanel/DebugLabel")
 [node name="MainLayout" type="VBoxContainer" parent="."]
 offset_right = 10.0
 offset_bottom = 54.0
+theme_override_constants/separation = 0
+
+[node name="top" type="ColorRect" parent="MainLayout"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+color = Color(0.101960786, 0.101960786, 0.101960786, 1)
 
 [node name="BoardContainer" type="AspectRatioContainer" parent="MainLayout"]
 layout_mode = 2
@@ -26,6 +32,11 @@ layout_mode = 2
 theme_override_constants/h_separation = 0
 theme_override_constants/v_separation = 0
 columns = 8
+
+[node name="bottom" type="ColorRect" parent="MainLayout"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+color = Color(0.101960786, 0.101960786, 0.101960786, 1)
 
 [node name="TurnLabel" type="Label" parent="MainLayout"]
 layout_mode = 2

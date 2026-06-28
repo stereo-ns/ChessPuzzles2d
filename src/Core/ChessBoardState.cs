@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using ChessDotNet;
 
 namespace ChessPuzzles2d.Core
@@ -34,6 +35,29 @@ namespace ChessPuzzles2d.Core
         public bool IsCheckmated(Player player) => _game.IsCheckmated(player);
         public bool IsDraw() => _game.IsDraw();
 
+        // FIKSIRANA PROVERA ŠAHA: Eksponiramo fabričku metodu iz biblioteke
+        public bool IsInCheck(Player player) => _game.IsInCheck(player);
+
+        // TAČKICE: Izvlačimo sve validne poteze za figuru na zadatoj poziciji
+        public List<Position> GetValidMovesForPiece(int row, int col)
+        {
+            List<Position> validDestinations = new List<Position>();
+            Position currentPos = ToPosition(row, col);
+
+            // Uzimamo apsolutno sve legalne poteze za trenutnog igrača na potezu
+            var allMoves = _game.GetValidMoves(_game.WhoseTurn);
+
+            foreach (var move in allMoves)
+            {
+                // Ako potez kreće sa našeg selektovanog polja, pamtimo gde ide
+                if (move.OriginalPosition.Equals(currentPos))
+                {
+                    validDestinations.Add(move.NewPosition);
+                }
+            }
+            return validDestinations;
+        }
+
         public bool TryMakeMove(int fromRow, int fromCol, int toRow, int toCol, char? promotionChar, out string reason)
         {
             reason = string.Empty;
@@ -54,14 +78,13 @@ namespace ChessPuzzles2d.Core
                 return false;
             }
 
-            // PROVERA PROMOCIJE: Da li pešak stupa na poslednji red (Rank 8 ili Rank 1)
             if (piece.GetFenCharacter() == 'P' || piece.GetFenCharacter() == 'p')
             {
                 if (toPos.Rank == 8 || toPos.Rank == 1)
                 {
                     if (promotionChar == null)
                     {
-                        reason = "PROMOCIJA"; // Signaliziramo da nam treba vizuelni meni
+                        reason = "PROMOCIJA";
                         return false;
                     }
                 }

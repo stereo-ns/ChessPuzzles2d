@@ -184,26 +184,27 @@ namespace ChessPuzzles2d.Services
         {
             if (TurnLabel == null || RestartButton == null) return;
 
-            // STAVKA 1 I STAVKA 2: Podrazumevano brišemo sve poruke i pišemo ko je sledeći na potezu!
             string koIgra = _boardState.CurrentTurn == ChessDotNet.Player.White ? "BELI" : "CRNI";
-            TurnLabel.Text = $"NA POTEZU: {koIgra}";
 
-            // PROVERA FINALA: Ako je mat ili remi, preklapamo tekst krajnjim ishodom
             if (_boardState.IsCheckmated(_boardState.CurrentTurn))
             {
                 string winner = _boardState.CurrentTurn == ChessDotNet.Player.White ? "CRNI" : "BELI";
                 TurnLabel.Text = $"KRAJ: MAT! POBEDNIK JE {winner}!";
-
-                RestartButton.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
-                RestartButton.CustomMinimumSize = new Vector2(0, 55);
                 RestartButton.Visible = true;
             }
             else if (_boardState.IsDraw())
             {
                 TurnLabel.Text = "KRAJ: REZULTAT JE NEREŠEN!";
-                RestartButton.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
-                RestartButton.CustomMinimumSize = new Vector2(0, 55);
                 RestartButton.Visible = true;
+            }
+            // PROVERA ŠAHA: Pozivamo stabilnu metodu iz tvog omotača
+            else if (_boardState.IsInCheck(_boardState.CurrentTurn))
+            {
+                TurnLabel.Text = $"ŠAH! NA POTEZU: {koIgra}";
+            }
+            else
+            {
+                TurnLabel.Text = $"NA POTEZU: {koIgra}";
             }
         }
 
