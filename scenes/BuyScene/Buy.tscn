@@ -1,0 +1,31 @@
+[gd_scene load_steps=2 format=3 uid="uid://c3jpp5fwptnu5"]
+
+[ext_resource type="Script" uid="uid://covl8savbxip8" path="res://scenes/BuyScene/BuyController.cs" id="1_w8750"]
+
+[node name="Buy" type="Control" node_paths=PackedStringArray("EnterGameButton", "BackToMenuButton")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_w8750")
+EnterGameButton = NodePath("EnterGameButton")
+BackToMenuButton = NodePath("BackToMenuButton")
+
+[node name="EnterGameButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 200.0
+offset_top = 350.0
+offset_right = 247.0
+offset_bottom = 381.0
+text = "PLAY
+"
+
+[node name="BackToMenuButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 200.0
+offset_top = 450.0
+offset_right = 250.0
+offset_bottom = 481.0
+text = "BACK"

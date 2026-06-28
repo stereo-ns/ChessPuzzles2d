@@ -1,0 +1,31 @@
+[gd_scene load_steps=2 format=3 uid="uid://bdbmcg1xkf18v"]
+
+[ext_resource type="Script" uid="uid://14a3h54pxq1c" path="res://scenes/MenuScene/MenuController.cs" id="1_m4cbb"]
+
+[node name="Menu" type="Control" node_paths=PackedStringArray("LanguageSrButton", "LanguageEnButton")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_m4cbb")
+LanguageSrButton = NodePath("LanguageSrButton")
+LanguageEnButton = NodePath("LanguageEnButton")
+
+[node name="LanguageSrButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 200.0
+offset_top = 350.0
+offset_right = 261.0
+offset_bottom = 381.0
+text = "SRPSKI
+"
+
+[node name="LanguageEnButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 200.0
+offset_top = 450.0
+offset_right = 276.0
+offset_bottom = 481.0
+text = "ENGLISH"
