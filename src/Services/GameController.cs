@@ -13,6 +13,10 @@ namespace ChessPuzzles2d.Services
         [Export] public Label TurnLabel { get; set; }
         [Export] public Button RestartButton { get; set; }
         [Export] public Label DebugLabel { get; set; }
+        [Export] public HSlider DifficultySlider { get; set; }
+        [Export] public Label DifficultyLabel { get; set; }
+
+
 
         private ChessBoardState _boardState;
         private PieceAtlasService _atlasService;
@@ -21,9 +25,14 @@ namespace ChessPuzzles2d.Services
 
         private BoardView _boardView;
         private PromotionUiView _promoView;
+        private StockfishService _stockfishService;
+
 
         private int _selectedRow = -1;
         private int _selectedCol = -1;
+        private int _botFromRow = -1, _botFromCol = -1;
+        private int _botToRow = -1, _botToCol = -1;
+
         private float _currentTileSize = 81f;
 
         private bool _isWaitingForPromotion = false;
@@ -50,6 +59,17 @@ namespace ChessPuzzles2d.Services
 
             // LAMBDA VEZA ZA MOBILNI BILD
             _inputManager.OnSquareSelected += (row, col) => HandleSquareSelection(row, col);
+            // Inicijalizujemo slajder na startu igre
+            if (DifficultySlider != null)
+            {
+                DifficultySlider.MinValue = 0;   // Najlakši nivo
+                DifficultySlider.MaxValue = 20;  // Najteži nivo (Velemajstor)
+                DifficultySlider.Step = 1;      // Pomeranje za po 1 ceo broj
+
+                // Postavljamo fabrički default na Nivo 5!
+                DifficultySlider.Value = 5;
+                DifficultySlider.Editable = true; // Osiguravamo da igrač može da ga pomera
+            }
 
 
             _windowManager.OnBoardResize += (tileSize) => OnBoardResize(tileSize);
@@ -62,6 +82,7 @@ namespace ChessPuzzles2d.Services
         public override void _ExitTree()
         {
             if (_windowManager != null) _windowManager.OnBoardResize -= OnBoardResize;
+            _stockfishService?.StopEngine();
         }
 
         public override void _Input(InputEvent @event)
@@ -121,6 +142,7 @@ namespace ChessPuzzles2d.Services
                     _selectedRow = -1; _selectedCol = -1;
                     RefreshDisplay();
                     UpdateTurnLabelText(); // AKO JE USPEH: Briše staru grešku i ispisuje novog igrača!
+                    CheckForBotTurn();
                 }
                 else
                 {
@@ -170,17 +192,44 @@ namespace ChessPuzzles2d.Services
                 _isWaitingForPromotion = false;
                 RefreshDisplay();
                 UpdateTurnLabelText();
+                CheckForBotTurn();
             }
         }
 
         private void OnRestartButtonPressed()
         {
+            // 1. Gasimo stari pozadinski Stockfish proces ako postoji od prošle partije
+            _stockfishService?.StopEngine();
+
+            // 2. Čitamo izabranu vrednost direktno sa slajdera (Default je 5 ako igrač nije pipnuo ništa)
+            int selectedSkill = 5;
+            if (DifficultySlider != null)
+            {
+                selectedSkill = (int)DifficultySlider.Value;
+                DifficultySlider.Editable = false; // Zaključavamo slajder tokom partije da nema varanja!
+            }
+
+            // 3. Budimo novu šahovsku tablu u memoriji i palimo bota sa tačnim nivoom (0-20)
             _boardState = new ChessBoardState();
+            _stockfishService = new StockfishService();
+            _stockfishService.StartEngine(selectedSkill);
+
+            // 4. Resetujemo sve selekcije i čistimo plavi Lichess trag botovog poteza sa prošle partije
             _selectedRow = -1; _selectedCol = -1; _isWaitingForPromotion = false;
-            RestartButton.Visible = false;
+            _botFromRow = -1; _botFromCol = -1; _botToRow = -1; _botToCol = -1;
+
+            // 5. Menjamo natpis na dugmetu u "RESTART" i sakrivamo ga dok se partija zvanično ne završi
+            if (RestartButton != null)
+            {
+                RestartButton.Text = "RESTART";
+                RestartButton.Visible = false;
+            }
+
+            // 6. Osvežavamo grafiku table i natpis ko je na potezu
             RefreshDisplay();
             UpdateTurnLabelText();
         }
+
 
         private void UpdateTurnLabelText()
         {
@@ -219,11 +268,53 @@ namespace ChessPuzzles2d.Services
             else
             {
                 // FIKS: Brišemo 'validMoves' sa kraja jer BoardView sve računa sam unutra!
-                _boardView.Render(_boardState, _selectedRow, _selectedCol, _currentTileSize);
+                // _boardView.Render(_boardState, _selectedRow, _selectedCol, _currentTileSize);
+                _boardView.Render(_boardState, _selectedRow, _selectedCol, _currentTileSize, _botFromRow, _botFromCol, _botToRow, _botToCol);
+
             }
             BoardGrid.QueueRedraw();
         }
+        private void CheckForBotTurn()
+        {
+            if (_boardState.CurrentTurn == ChessDotNet.Player.Black && !_boardState.IsCheckmated(ChessDotNet.Player.Black) && !_boardState.IsDraw())
+            {
+                Callable.From(RunBotMove).CallDeferred();
+            }
+        }
 
+        private async void RunBotMove()
+        {
+            string currentFen = _boardState.GetFen();
+            string bestMove = _stockfishService.GetBestMove(currentFen, 300);
+
+            if (string.IsNullOrEmpty(bestMove) || bestMove.Length < 4) return;
+
+            // 🚀 VEŠTAČKA PAUZA: Čekamo 1.2 sekunde da bot odglumi ljudsko razmišljanje
+            await ToSignal(GetTree().CreateTimer(1.2f), "timeout");
+
+            int fromCol = bestMove[0] - 'a';
+            int fromRow = '8' - bestMove[1];
+            int toCol = bestMove[2] - 'a';
+            int toRow = '8' - bestMove[3];
+
+            char? promoChar = bestMove.Length > 4 ? bestMove[4] : null;
+
+            // Beležimo koordinate za plavi Lichess trag
+            _botFromRow = fromRow; _botFromCol = fromCol;
+            _botToRow = toRow; _botToCol = toCol;
+
+            string dummy;
+            bool success = _boardState.TryMakeMove(fromRow, fromCol, toRow, toCol, promoChar, out dummy);
+
+            if (success)
+            {
+                Callable.From(() =>
+                {
+                    RefreshDisplay();
+                    UpdateTurnLabelText();
+                }).CallDeferred();
+            }
+        }
 
     }
 }

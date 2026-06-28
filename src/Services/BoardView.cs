@@ -17,7 +17,8 @@ namespace ChessPuzzles2d.Views
             _atlas = atlas;
         }
 
-        public void Render(ChessBoardState boardState, int selectedRow, int selectedCol, float tileSize)
+        public void Render(ChessBoardState boardState, int selectedRow, int selectedCol, float tileSize,
+                   int botFromRow = -1, int botFromCol = -1, int botToRow = -1, int botToCol = -1)
         {
             HashSet<string> validSquares = new HashSet<string>();
             if (selectedRow != -1 && selectedCol != -1)
@@ -92,9 +93,13 @@ namespace ChessPuzzles2d.Views
 
                     if (r == selectedRow && c == selectedCol)
                     {
-                        background.Color = new Color("#f7ec74");
+                        background.Color = new Color("#f7ec74"); // Žuta za tvoju selekciju
                     }
-                    // AFIRMATIVNA PROVERA NAPADA: Beli napada crnu figuru ILI crni napada belu figuru!
+                    // LICHESS TRAG POTEZA: Bojimo u plavičastu nijansu polja odakle je i gde je bot stigao
+                    else if ((r == botFromRow && c == botFromCol) || (r == botToRow && c == botToCol))
+                    {
+                        background.Color = new Color(0.15f, 0.45f, 0.68f, 0.4f); // Svetlo plava providna
+                    }
                     else if (validSquares.Contains($"{r},{c}") && ((isWhiteTurn && isBlackPiece) || (isBlackTurn && isWhitePiece)))
                     {
                         background.Color = new Color(0.9f, 0.3f, 0.3f, 0.6f);

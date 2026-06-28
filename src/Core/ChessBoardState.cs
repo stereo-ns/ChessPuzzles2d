@@ -101,5 +101,50 @@ namespace ChessPuzzles2d.Core
             reason = "Potez je nelegalan.";
             return false;
         }
+        public string GetFen()
+        {
+            System.Text.StringBuilder fen = new System.Text.StringBuilder();
+
+            // 1. Prolazimo kroz tablu red po red (od 8. do 1. reda)
+            for (int r = 0; r < 8; r++)
+            {
+                int emptyCount = 0;
+                for (int c = 0; c < 8; c++)
+                {
+                    string piece = GetPieceAt(r, c);
+                    if (piece == ".")
+                    {
+                        emptyCount++;
+                    }
+                    else
+                    {
+                        if (emptyCount > 0)
+                        {
+                            fen.Append(emptyCount);
+                            emptyCount = 0;
+                        }
+                        fen.Append(piece);
+                    }
+                }
+                if (emptyCount > 0)
+                {
+                    fen.Append(emptyCount);
+                }
+                if (r < 7)
+                {
+                    fen.Append("/");
+                }
+            }
+
+            // 2. Ko je na potezu (w = beli, b = crni)
+            string turn = CurrentTurn == ChessDotNet.Player.White ? "w" : "b";
+            fen.Append($" {turn}");
+
+            // 3. Prava na rokadu i en passant (stavljamo bazične vrednosti za stabilan proračun bota)
+            fen.Append(" KQkq - 0 1");
+
+            return fen.ToString();
+        }
+
     }
 }
