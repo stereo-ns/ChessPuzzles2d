@@ -69,7 +69,6 @@ namespace ChessPuzzles2d.Views
                     var background = cell.GetNode<ColorRect>("Background");
                     var pieceTexture = cell.GetNode<TextureRect>("Piece");
 
-                    // ZAKLJUČAVANJE DIMENZIJA: Prisiljavamo i polje i figuru na punu veličinu!
                     cell.CustomMinimumSize = new Vector2(tileSize, tileSize);
                     background.CustomMinimumSize = new Vector2(tileSize, tileSize);
                     background.Size = new Vector2(tileSize, tileSize);
@@ -80,44 +79,73 @@ namespace ChessPuzzles2d.Views
 
                     string piece = boardState.GetPieceAt(r, c);
 
+                    // AFIRMATIVNI INDIKATORI: Čiste činjenice na nivou STRINGOVA bez jurenja indeksa!
+                    bool isWhiteTurn = boardState.CurrentTurn == ChessDotNet.Player.White;
+                    bool isBlackTurn = boardState.CurrentTurn == ChessDotNet.Player.Black;
+
+                    bool isSquareEmpty = (piece == ".");
+
+                    // Figura je bela ako NIJE prazno polje I tekst je jednak svom velikom obliku
+                    bool isWhitePiece = !isSquareEmpty && (piece == piece.ToUpper());
+                    // Figura je crna ako NIJE prazno polje I tekst je jednak svom malom obliku
+                    bool isBlackPiece = !isSquareEmpty && (piece == piece.ToLower());
+
                     if (r == selectedRow && c == selectedCol)
                     {
                         background.Color = new Color("#f7ec74");
                     }
-                    else if (validSquares.Contains($"{r},{c}") && piece != ".")
+                    // AFIRMATIVNA PROVERA NAPADA: Beli napada crnu figuru ILI crni napada belu figuru!
+                    else if (validSquares.Contains($"{r},{c}") && ((isWhiteTurn && isBlackPiece) || (isBlackTurn && isWhitePiece)))
                     {
-                        background.Color = new Color(0.9f, 0.3f, 0.3f, 0.6f); // Lichess napad
+                        background.Color = new Color(0.9f, 0.3f, 0.3f, 0.6f);
                     }
                     else
                     {
                         background.Color = baseColor;
                     }
 
-                    if (piece != ".")
+                    if (isSquareEmpty)
+                    {
+                        pieceTexture.Visible = false;
+                    }
+                    else
                     {
                         pieceTexture.Texture = _atlas.GetPieceTexture(piece);
                         pieceTexture.Visible = true;
                     }
-                    else
-                    {
-                        pieceTexture.Visible = false;
-                    }
 
-                    if (validSquares.Contains($"{r},{c}") && piece == ".")
+                    // LICHESS TAČKICA SA GLATKIM CUBIC.OUT EASING-OM (Samo za dostupna prazna polja)
+                    if (validSquares.Contains($"{r},{c}") && isSquareEmpty)
                     {
+                        bool isNewDot = false;
                         if (dot == null)
                         {
                             dot = new ColorRect();
                             dot.Name = "LegalDot";
                             cell.AddChild(dot);
+                            isNewDot = true;
                         }
 
                         float dotSize = tileSize * 0.25f;
                         dot.CustomMinimumSize = new Vector2(dotSize, dotSize);
                         dot.Size = new Vector2(dotSize, dotSize);
                         dot.Position = new Vector2((tileSize - dotSize) / 2f, (tileSize - dotSize) / 2f);
-                        dot.Color = new Color(0.1f, 0.1f, 0.1f, 0.4f); // Lichess tačkica
-                        dot.Visible = true;
+
+                        if (isNewDot)
+                        {
+                            dot.Color = new Color(0.1f, 0.1f, 0.1f, 0.0f);
+                            dot.Visible = true;
+
+                            Tween tween = _grid.CreateTween();
+                            tween.TweenProperty(dot, "color", new Color(0.1f, 0.1f, 0.1f, 0.4f), 0.2f)
+                                 .SetTrans(Tween.TransitionType.Cubic)
+                                 .SetEase(Tween.EaseType.Out);
+                        }
+                        else
+                        {
+                            dot.Color = new Color(0.1f, 0.1f, 0.1f, 0.4f);
+                            dot.Visible = true;
+                        }
                     }
                     else if (dot != null)
                     {
