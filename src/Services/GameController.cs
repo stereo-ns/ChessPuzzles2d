@@ -1,141 +1,168 @@
 using Godot;
 using System;
-using System.Collections.Generic;
 using ChessPuzzles2d.Core;
 using ChessPuzzles2d.Views;
-using ChessPuzzles2d.Services;
+using System.Collections.Generic;
 
 namespace ChessPuzzles2d.Services
 {
-    public partial class GameController : Node
+    public partial class GameController : Node2D
     {
-        [Export] public Label TurnLabel;
-        [Export] public TextEdit DebugText;
-        [Export] public GridContainer BoardGrid;
-        [Export] public Button PlayButton;
+        [Export] public GridContainer BoardGrid { get; set; }
+        [Export] public Texture2D ChessPiecesAtlas { get; set; }
+        [Export] public Label TurnLabel { get; set; }
+        [Export] public Button RestartButton { get; set; }
+        [Export] public Label DebugLabel { get; set; }
+        [Export] public HSlider DifficultySlider { get; set; }
+        [Export] public Label DifficultyLabel { get; set; }
+
+
 
         private ChessBoardState _boardState;
-        private BoardView _boardView;
         private PieceAtlasService _atlasService;
+        private WindowManager _windowManager;
         private InputManager _inputManager;
+
+        private BoardView _boardView;
+        private PromotionUiView _promoView;
         private StockfishService _stockfishService;
+
 
         private int _selectedRow = -1;
         private int _selectedCol = -1;
-        private bool _isGameActive = false;
+        private int _botFromRow = -1, _botFromCol = -1;
+        private int _botToRow = -1, _botToCol = -1;
+        int selectedSkill = 5;
+        private bool _isGameActive = false; // Na samom startu igra miruje i zaključana je!
 
-        private int _botFromRow = -1;
-        private int _botFromCol = -1;
-        private int _botToRow = -1;
-        private int _botToCol = -1;
 
-        private int _promoFromRow = -1;
-        private int _promoFromCol = -1;
-        private int _promoToRow = -1;
-        private int _promoToCol = -1;
-        private bool _isPromotionActive = false;
+        private float _currentTileSize = 81f;
 
-        private int _botSkillLevel = 0;
-
-        // 🚀 LISTA ZA PRAĆENJE PGN ISTORIJE POTEZA NA EKRANU
-        private List<string> _moveHistory = new List<string>();
+        private bool _isWaitingForPromotion = false;
+        private int _promoFromRow, _promoFromCol, _promoToRow, _promoToCol;
 
         public override void _Ready()
         {
             GD.Print("=== ChessPuzzles2d: Inicijalizacija sistema ===");
 
-            _atlasService = new PieceAtlasService();
-            _boardView = new BoardView(BoardGrid, _atlasService);
+            if (BoardGrid == null || ChessPiecesAtlas == null || TurnLabel == null || RestartButton == null)
+            {
+                GD.PrintErr("[KRITIČNA GREŠKA]: Nedostaju reference u Inspectoru!");
+                return;
+            }
+
             _boardState = new ChessBoardState();
-            _inputManager = new InputManager(BoardGrid, this);
+            _atlasService = new PieceAtlasService(ChessPiecesAtlas);
 
+            _boardView = new BoardView(BoardGrid, _atlasService);
+            _promoView = new PromotionUiView(BoardGrid, _atlasService);
+
+            _windowManager = new WindowManager(GetViewport());
+            _inputManager = new InputManager(BoardGrid);
+
+            // LAMBDA VEZA ZA MOBILNI BILD
+            _inputManager.OnSquareSelected += (row, col) => HandleSquareSelection(row, col);
+            // Inicijalizujemo slajder na startu igre
+            if (DifficultySlider != null)
+            {
+                DifficultySlider.MinValue = 0;
+                DifficultySlider.MaxValue = 20;
+                DifficultySlider.Step = 1;
+                DifficultySlider.Value = 5;
+                DifficultySlider.Editable = true;
+
+                // Kačimo čist delegat za promenu vrednosti
+                DifficultySlider.ValueChanged += OnSliderValueChanged;
+
+                // Postavljamo početni tekst čim se igra upali
+                if (DifficultyLabel != null)
+                {
+                    DifficultyLabel.Text = "Izabrana težina: Nivo 5";
+                }
+            }
+
+
+            _windowManager.OnBoardResize += (tileSize) => OnBoardResize(tileSize);
+            RestartButton.Pressed += () => OnRestartButtonPressed();
+
+            _windowManager.TriggerInitialResize();
+            UpdateTurnLabelText(); // Odmah ispisuje ko prvi igra
             _stockfishService = new StockfishService();
-            _stockfishService.StartEngine(_botSkillLevel);
+            _stockfishService.StartEngine(5);
+            if (RestartButton != null)
+            {
+                RestartButton.Text = "KRENI IGRU"; // Menjamo tekst iz Restart u New Game mod
+                RestartButton.Visible = true;      // Prisno palimo vidljivost na startu ekrana!
+            }
+        }
 
-            // Ako postoji payload iz prodavnice, automatski pokrećemo meč
-            var payload = SceneManager.Instance.GetPayload();
-            if (payload != null)
-            {
-                OnPlayButtonPressed();
-            }
-            else
-            {
-                RefreshDisplay();
-                UpdateTurnLabelText();
-            }
+        public override void _ExitTree()
+        {
+            if (_windowManager != null) _windowManager.OnBoardResize -= OnBoardResize;
+            _stockfishService?.StopEngine();
         }
 
         public override void _Input(InputEvent @event)
         {
-            if (_boardState == null || _boardState.CurrentTurn == ChessDotNet.Player.Black)
-            {
-                return;
-            }
-
-            if (_isGameActive && !_isPromotionActive)
+            // ŠTIT: Ako igrač nije kliknuo na početak, _isGameActive je false i tabla potpuno ignoriše dodire!
+            if (_isGameActive)
             {
                 _inputManager?.HandleInput(@event);
             }
         }
-        public void OnPlayButtonPressed()
+
+
+        private void OnBoardResize(float tileSize)
         {
-            if (_isGameActive) return;
-
-            _isGameActive = true;
-            _moveHistory.Clear();
-            GameConfig.Instance.ResetMoveCount();
-
-            // 🚀 FIKS ZA ANDROID: Dugme se trenutno sakriva i gasi na klik!
-            if (PlayButton != null)
-            {
-                PlayButton.Visible = false;
-                PlayButton.Disabled = true;
-            }
-
-            MoveLoggerService.Instance.LogMessage("Match", "Partija uspešno startovana i aktivirana.");
-
+            _currentTileSize = tileSize;
             RefreshDisplay();
-            UpdateTurnLabelText();
-            CheckForBotTurn();
         }
 
-        public void HandleSquareSelection(int row, int col)
+        private void HandleSquareSelection(int row, int col)
         {
-            if (!_isGameActive || _isPromotionActive) return;
-
-            if (_selectedRow == -1 && _selectedCol == -1)
+            if (DebugLabel != null)
             {
-                string piece = _boardState.GetPieceAt(row, col);
-                bool isWhitePiece = piece != "." && piece == piece.ToUpper();
-
-                if (isWhitePiece)
-                {
-                    _selectedRow = row;
-                    _selectedCol = col;
-                    RefreshDisplay();
-                }
+                string pieceAtSquare = _boardState.GetPieceAt(row, col);
+                DebugLabel.Text = $"[DEBUG EKRAN]: Kliknuto na polje [{row},{col}] | Figura u memoriji: '{pieceAtSquare}'";
             }
-            else
+
+            if (_boardState.IsCheckmated(_boardState.CurrentTurn) || _boardState.IsDraw()) return;
+
+            if (_isWaitingForPromotion)
             {
-                if (row == _selectedRow && col == _selectedCol)
+                HandlePromoInput(row, col);
+                return;
+            }
+
+            string clickedPiece = _boardState.GetPieceAt(row, col);
+
+            if (_selectedRow != -1 && _selectedCol != -1)
+            {
+                if (_selectedRow == row && _selectedCol == col)
                 {
-                    _selectedRow = -1;
-                    _selectedCol = -1;
-                    RefreshDisplay();
-                    return;
+                    _selectedRow = -1; _selectedCol = -1;
+                    RefreshDisplay(); return;
                 }
 
                 string illegalReason;
-                string moveNotation = GetMoveNotation(_selectedRow, _selectedCol, row, col);
-
                 bool moveSuccessful = _boardState.TryMakeMove(_selectedRow, _selectedCol, row, col, null, out illegalReason);
+
+                if (!moveSuccessful && illegalReason == "PROMOCIJA")
+                {
+                    _isWaitingForPromotion = true;
+                    _promoFromRow = _selectedRow; _promoFromCol = _selectedCol;
+                    _promoToRow = row; _promoToCol = col;
+                    _selectedRow = -1; _selectedCol = -1;
+
+                    RefreshDisplay();
+                    if (TurnLabel != null) TurnLabel.Text = "IZABERITE FIGURU NA TABLI!";
+                    return;
+                }
 
                 if (moveSuccessful)
                 {
-                    // Beležimo potez belog u našu PGN listu za ekran
-                    _moveHistory.Add(moveNotation);
-
-                    MoveLoggerService.Instance.LogMessage("Match", $"PLAYER (White) moved: {moveNotation}");
+                    // 🚀 LOGOVANJE POTEZA IGRAČA:
+                    MoveLoggerService.Instance.LogMessage("Match", $"PLAYER (White) moved from [{_selectedRow},{_selectedCol}] to [{row},{col}]");
 
                     _selectedRow = -1; _selectedCol = -1;
                     _botFromRow = -1; _botFromCol = -1;
@@ -145,45 +172,182 @@ namespace ChessPuzzles2d.Services
                     UpdateTurnLabelText();
                     CheckForBotTurn();
                 }
-                else if (illegalReason == "PROMOCIJA")
-                {
-                    _isPromotionActive = true;
-                    _promoFromRow = _selectedRow; _promoFromCol = _selectedCol;
-                    _promoToRow = row; _promoToCol = col;
-                    _selectedRow = -1; _selectedCol = -1;
-
-                    MoveLoggerService.Instance.LogMessage("Match", "Aktivirano stanje promocije pešaka.");
-                }
                 else
                 {
+                    if (TurnLabel != null) TurnLabel.Text = $"GREŠKA: {illegalReason.ToUpper()}";
                     _selectedRow = -1; _selectedCol = -1;
+                    RefreshDisplay();
+                }
+            }
+            else
+            {
+                if (clickedPiece != ".")
+                {
+                    // POPRAVKA: Uzimamo prvi karakter stringa clickedPiece[0] da dobijemo sirovi char!
+                    bool isWhitePiece = char.IsUpper(clickedPiece[0]);
+                    bool isWhiteTurn = _boardState.CurrentTurn == ChessDotNet.Player.White;
+
+                    if ((isWhiteTurn && !isWhitePiece) || (!isWhiteTurn && isWhitePiece))
+                    {
+                        if (TurnLabel != null) TurnLabel.Text = "GREŠKA: NIJE VAŠ RED!";
+                        return;
+                    }
+
+                    _selectedRow = row; _selectedCol = col;
                     RefreshDisplay();
                 }
             }
         }
 
+        private void HandlePromoInput(int row, int col)
+        {
+            if (col != _promoToCol) return;
+            char? selectedChoice = null;
+            int relativeRow = _promoToRow == 0 ? row : (7 - row);
+
+            switch (relativeRow)
+            {
+                case 0: selectedChoice = 'Q'; break;
+                case 1: selectedChoice = 'N'; break;
+                case 2: selectedChoice = 'R'; break;
+                case 3: selectedChoice = 'B'; break;
+            }
+
+            if (selectedChoice != null)
+            {
+                string dummy;
+                _boardState.TryMakeMove(_promoFromRow, _promoFromCol, _promoToRow, _promoToCol, selectedChoice, out dummy);
+                _isWaitingForPromotion = false;
+                RefreshDisplay();
+                UpdateTurnLabelText();
+                CheckForBotTurn();
+            }
+        }
+
+        private void OnRestartButtonPressed()
+        {
+            _isGameActive = true;
+            // 1. Gasimo stari pozadinski Stockfish proces ako postoji od prošle partije
+            _stockfishService?.StopEngine();
+
+            // 2. Čitamo izabranu vrednost direktno sa slajdera (Default je 5 ako igrač nije pipnuo ništa)
+            int selectedSkill = 5;
+            if (DifficultySlider != null)
+            {
+                selectedSkill = (int)DifficultySlider.Value;
+                DifficultySlider.Editable = false; // Zaključavamo slajder tokom partije da nema varanja!
+                // DifficultySlider.ReleaseFocus();
+                // DifficultySlider.FocusMode = Control.FocusModeEnum.None;
+            }
+
+            // 3. Budimo novu šahovsku tablu u memoriji i palimo bota sa tačnim nivoom (0-20)
+            _boardState = new ChessBoardState();
+            _stockfishService = new StockfishService();
+            _stockfishService.StartEngine(selectedSkill);
+
+            // 4. Resetujemo sve selekcije i čistimo plavi Lichess trag botovog poteza sa prošle partije
+            _selectedRow = -1; _selectedCol = -1; _isWaitingForPromotion = false;
+            _botFromRow = -1; _botFromCol = -1; _botToRow = -1; _botToCol = -1;
+
+            // 5. Menjamo natpis na dugmetu u "RESTART" i sakrivamo ga dok se partija zvanično ne završi
+            if (RestartButton != null)
+            {
+                RestartButton.Text = "RESTART";
+                RestartButton.Visible = false;
+            }
+
+            // 6. Osvežavamo grafiku table i natpis ko je na potezu
+            RefreshDisplay();
+            UpdateTurnLabelText();
+        }
+
+
+        private void UpdateTurnLabelText()
+        {
+            if (TurnLabel == null || RestartButton == null) return;
+
+            string koIgra = _boardState.CurrentTurn == ChessDotNet.Player.White ? "BELI" : "CRNI";
+
+            if (_boardState.IsCheckmated(_boardState.CurrentTurn))
+            {
+                string winner = _boardState.CurrentTurn == ChessDotNet.Player.White ? "CRNI" : "BELI";
+                TurnLabel.Text = $"KRAJ: MAT! POBEDNIK JE {winner}!";
+                RestartButton.Visible = true;
+            }
+            else if (_boardState.IsDraw())
+            {
+                TurnLabel.Text = "KRAJ: REZULTAT JE NEREŠEN!";
+                RestartButton.Visible = true;
+            }
+            // PROVERA ŠAHA: Pozivamo stabilnu metodu iz tvog omotača
+            else if (_boardState.IsInCheck(_boardState.CurrentTurn))
+            {
+                TurnLabel.Text = $"ŠAH! NA POTEZU: {koIgra}";
+            }
+            else
+            {
+                TurnLabel.Text = $"NA POTEZU: {koIgra}";
+            }
+        }
+
+        private void RefreshDisplay()
+        {
+            if (_isWaitingForPromotion)
+            {
+                _promoView.RenderOverlay(_boardState, _promoToRow, _promoToCol, _promoFromRow, _promoFromCol, _currentTileSize);
+            }
+            else
+            {
+                // FIKS: Brišemo 'validMoves' sa kraja jer BoardView sve računa sam unutra!
+                // _boardView.Render(_boardState, _selectedRow, _selectedCol, _currentTileSize);
+                _boardView.Render(_boardState, _selectedRow, _selectedCol, _currentTileSize, _botFromRow, _botFromCol, _botToRow, _botToCol);
+
+            }
+            BoardGrid.QueueRedraw();
+        }
+        private void CheckForBotTurn()
+        {
+            if (_boardState.CurrentTurn == ChessDotNet.Player.Black && !_boardState.IsCheckmated(ChessDotNet.Player.Black) && !_boardState.IsDraw())
+            {
+                Callable.From(RunBotMove).CallDeferred();
+            }
+        }
+
         private async void RunBotMove()
         {
+            // Uzimamo sirovi, potencijalno kontradiktorni FEN iz biblioteke
             string rawFen = _boardState.GetFen();
+
+            // 🚀 NEPROBOJNI ČISTAČ FEN-A: Cepamo string na segmente preko razmaka
             string[] fenParts = rawFen.Split(' ');
             if (fenParts.Length >= 3)
             {
+                // Indeks 2 drži rokadne markere (npr. KQkq).
+                // Pošto su i beli i crni već izvršili rokade, nasilno stavljamo crticu '-' 
+                // i čistimo lažne markere biblioteke da motor ne bi bacio grešku!
                 fenParts[2] = "-";
             }
+
+            // Sastavljamo očišćeni, stoprocentno legalni FEN koji Stockfish bez problema guta
             string currentFen = string.Join(" ", fenParts);
 
+            // Upisujemo očišćeni FEN na disk radi stoprocentne provere u terminalu
             MoveLoggerService.Instance.LogMessage("Stockfish", $"Bot requested move. Clean FEN: {currentFen}");
 
+            // Šaljemo upit motoru sa skraćenim vremenom razmišljanja (50ms) za ljudskiji nivo 0
             string bestMove = _stockfishService.GetBestMove(currentFen, 50);
 
             if (string.IsNullOrEmpty(bestMove) || bestMove.Length < 4)
             {
-                MoveLoggerService.Instance.LogMessage("Stockfish", "[CRITICAL ERROR]: Bot engine failed to return a move!");
+                // Ako motor iz nekog nepoznatog razloga ipak zakaže, logujemo krah na disk
+                MoveLoggerService.Instance.LogMessage("Stockfish", "[CRITICAL ERROR]: Engine returned an empty or invalid move string even with clean FEN!");
                 return;
             }
 
+            // Veštačka, ljudska pauza od 1.2 sekunde da bot ne bi povukao potez u milisekundi
             await ToSignal(GetTree().CreateTimer(1.2f), "timeout");
 
+            // Prevodioci UCI tekstualnog poteza (npr. e7e5) u matrične indekse
             int fromCol = bestMove[0] - 'a';
             int fromRow = '8' - bestMove[1];
             int toCol = bestMove[2] - 'a';
@@ -191,23 +355,20 @@ namespace ChessPuzzles2d.Services
 
             char? promoChar = bestMove.Length > 4 ? bestMove[4] : null;
 
+            // Upisujemo tačne koordinate u memoriju kontrolera za Lichess žuti okvir poslednjeg poteza
             _botFromRow = fromRow; _botFromCol = fromCol;
             _botToRow = toRow; _botToCol = toCol;
 
             string dummy;
+            // Izvršavamo potez crnog unutar memorije šahovske biblioteke
             bool success = _boardState.TryMakeMove(fromRow, fromCol, toRow, toCol, promoChar, out dummy);
 
             if (success)
             {
-                // Beležimo potez crnog u našu PGN listu za ekran
-                _moveHistory.Add(bestMove.Substring(0, 4));
+                // 🚀 ZVANIČAN TRIJUMF NA DISKU: Loger uspešno beleži legalan potez bota!
+                MoveLoggerService.Instance.LogMessage("Match", $"BOT (Black) executed move: {bestMove} (Translated to: [{fromRow},{fromCol}] -> [{toRow},{toCol}])");
 
-                int fullmoveNumber = GameConfig.Instance.MoveCount;
-                MoveLoggerService.Instance.LogMessage("Match", $"Potez br. {fullmoveNumber} završen. BOT moved: {bestMove}");
-
-                // Krug je kompletan, uvećavamo brojač za sledeći potez belog
-                GameConfig.Instance.IncrementMove();
-
+                // Odloženo i bezbedno osvežavamo grafički server iz glavnog thread-a
                 Callable.From(() =>
                 {
                     RefreshDisplay();
@@ -216,83 +377,18 @@ namespace ChessPuzzles2d.Services
             }
             else
             {
-                MoveLoggerService.Instance.LogMessage("Match", $"[CRITICAL ERROR]: Bot illegal move attempt: {bestMove}");
+                // Ako biblioteka odbaci potez, odmah upisujemo crveni alarm u terminal
+                MoveLoggerService.Instance.LogMessage("Match", $"[CRITICAL ERROR]: Bot attempted illegal move according to ChessDotNet: {bestMove}");
             }
         }
-        private void CheckForBotTurn()
+
+        private void OnSliderValueChanged(double value)
         {
-            if (_isGameActive && _boardState.CurrentTurn == ChessDotNet.Player.Black)
+            if (DifficultyLabel != null)
             {
-                RunBotMove();
+                DifficultyLabel.Text = $"Izabrana težina: Nivo {value}";
             }
         }
 
-        public void RefreshDisplay()
-        {
-            _boardView?.Render(_boardState, _selectedRow, _selectedCol, 100f, _botFromRow, _botFromCol, _botToRow, _botToCol);
-            RenderMoveHistoryFeed(); // Osvežavamo PGN ispis na korisničkom ekranu
-        }
-
-        private void UpdateTurnLabelText()
-        {
-            // 🚀 PROČIŠĆAVANJE: Labela "Na potezu" ostaje potpuno prazna i čista po tvom zahtevu!
-            if (TurnLabel != null)
-            {
-                TurnLabel.Text = "";
-            }
-        }
-
-        // 🚀 METODA KOJA FORMIRA I CRTA STRUKTURNU PGN ISTORIJU POTEZA NA EKRANU
-        private void RenderMoveHistoryFeed()
-        {
-            if (DebugText == null) return;
-
-            System.Text.StringBuilder sb = new System.Text.StringBuilder();
-            int pairCount = 1;
-
-            for (int i = 0; i < _moveHistory.Count; i += 2)
-            {
-                string whiteMove = _moveHistory[i];
-                string blackMove = (i + 1 < _moveHistory.Count) ? _moveHistory[i + 1] : "";
-
-                sb.Append($"{pairCount}. {whiteMove} {blackMove}\n");
-                pairCount++;
-            }
-
-            DebugText.Text = sb.ToString();
-        }
-
-        private string GetMoveNotation(int fR, int fC, int tR, int tC)
-        {
-            char fFile = (char)('a' + fC);
-            int fRank = 8 - fR;
-            char tFile = (char)('a' + tC);
-            int tRank = 8 - tR;
-            return $"{fFile}{fRank}{tFile}{tRank}";
-        }
-
-        public void OnRestartButtonPressed()
-        {
-            GameConfig.Instance.ResetMoveCount();
-            _moveHistory.Clear();
-            _isGameActive = false;
-            _isPromotionActive = false;
-            _selectedRow = -1; _selectedCol = -1;
-            _botFromRow = -1; _botFromCol = -1;
-            _botToRow = -1; _botToCol = -1;
-
-            // Vraćamo Play dugme u vidljivo i aktivno stanje za novi početak meča
-            if (PlayButton != null)
-            {
-                PlayButton.Visible = true;
-                PlayButton.Disabled = false;
-            }
-
-            _boardState = new ChessBoardState();
-            MoveLoggerService.Instance.LogMessage("Match", "Sistem restartovan. Čekam klik na Play dugme.");
-
-            RefreshDisplay();
-            UpdateTurnLabelText();
-        }
     }
 }
