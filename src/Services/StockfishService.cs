@@ -29,23 +29,49 @@ namespace ChessPuzzles2d.Services
                 _input = _process.StandardInput;
                 _output = _process.StandardOutput;
 
+                // 1. Budimo motor i uvodimo UCI protokol
                 SendCommand("uci");
 
-                // ZAKLJUČAVANJE TEŽINE: Odmah na startu procesa!
-                SendCommand($"setoption name Skill Level value {skillLevel}");
-
+                // 2. 🚀 OBAVEZNO ČEKANJE: Motor mora da završi inicijalizaciju pre nego što primi opcije!
                 string line;
                 while ((line = _output.ReadLine()) != null)
                 {
-                    if (line == "uciok") break;
+                    if (line.Trim() == "uciok") break;
                 }
-                GD.Print($"[STOCKFISH]: Bot spreman i zaključan na nivou: {skillLevel}");
+
+                // 3. Sada kada je motor spreman, bezbedno zaključavamo nivo težine (0-20)
+                SendCommand($"setoption name Skill Level value {skillLevel}");
+
+                // 4. 🚀 STRUČNA POTVRDA: Pitamo motor da li je uspešno primenio podešavanje
+                SendCommand("isready");
+
+                // 5. Blokirajući čitamo strim dok nam Stockfish zvanično ne vrati 'readyok'
+                bool isConfirmed = false;
+                while ((line = _output.ReadLine()) != null)
+                {
+                    if (line.Trim() == "readyok")
+                    {
+                        isConfirmed = true;
+                        break;
+                    }
+                }
+
+                if (isConfirmed)
+                {
+                    // Upisujemo zvaničan trijumf i u naš fajl na disku
+                    MoveLoggerService.Instance.LogMessage("Stockfish", $"[UCI CONFIRMED]: Engine successfully applied Skill Level: {skillLevel}");
+                }
+                else
+                {
+                    MoveLoggerService.Instance.LogMessage("Stockfish", $"[WARNING]: Engine readyok handshake failed for Level: {skillLevel}");
+                }
             }
             catch (Exception ex)
             {
-                GD.PrintErr($"[STOCKFISH GREŠKA]: {ex.Message}");
+                MoveLoggerService.Instance.LogMessage("Stockfish", $"[CRITICAL ERROR] in StartEngine: {ex.Message}");
             }
         }
+
 
         public void SendCommand(string command)
         {

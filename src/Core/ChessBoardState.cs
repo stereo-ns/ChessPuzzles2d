@@ -58,39 +58,25 @@ namespace ChessPuzzles2d.Core
             return validDestinations;
         }
 
-        public bool TryMakeMove(int fromRow, int fromCol, int toRow, int toCol, char? promotionChar, out string reason)
+        public bool TryMakeMove(int fromRow, int fromCol, int toRow, int toCol, char? promotionTarget, out string illegalReason)
         {
-            reason = string.Empty;
+            illegalReason = "";
+            Position from = new Position((File)fromCol, 8 - fromRow);
+            Position to = new Position((File)toCol, 8 - toRow);
 
-            Position fromPos = ToPosition(fromRow, fromCol);
-            Position toPos = ToPosition(toRow, toCol);
-
-            Piece piece = _game.GetPieceAt(fromPos);
-            if (piece == null)
+            Move move;
+            if (promotionTarget != null)
             {
-                reason = "Izabrano polje je prazno.";
-                return false;
+                // Ispravno i osigurano kastovanje karaktera za promociju
+                char p = char.ToUpper(promotionTarget.Value);
+                move = new Move(from, to, CurrentTurn, p);
             }
-
-            if (piece.Owner != _game.WhoseTurn)
+            else
             {
-                reason = "Nije vaš red!";
-                return false;
+                // 🚀 ČIST FABRIČKI POTEZ: Za sve regularne poteze (uključujući i rokadu),
+                // koristimo isključivo standardnu Move klasu biblioteke ChessDotNet!
+                move = new Move(from, to, CurrentTurn);
             }
-
-            if (piece.GetFenCharacter() == 'P' || piece.GetFenCharacter() == 'p')
-            {
-                if (toPos.Rank == 8 || toPos.Rank == 1)
-                {
-                    if (promotionChar == null)
-                    {
-                        reason = "PROMOCIJA";
-                        return false;
-                    }
-                }
-            }
-
-            Move move = new Move(fromPos, toPos, _game.WhoseTurn, promotionChar);
 
             if (_game.IsValidMove(move))
             {
@@ -98,7 +84,7 @@ namespace ChessPuzzles2d.Core
                 return true;
             }
 
-            reason = "Potez je nelegalan.";
+            illegalReason = "Nelegalan potez po pravilima šaha.";
             return false;
         }
         public string GetFen()

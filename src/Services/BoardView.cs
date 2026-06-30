@@ -120,14 +120,34 @@ namespace ChessPuzzles2d.Views
                     bool isSquareEmpty = (piece == ".");
                     bool isWhitePiece = !isSquareEmpty && (piece == piece.ToUpper());
                     bool isBlackPiece = !isSquareEmpty && (piece == piece.ToLower());
+                    if (background.HasNode("InnerMask"))
+                    {
+                        background.GetNode("InnerMask").QueueFree();
+                    }
+
 
                     if (r == selectedRow && c == selectedCol)
                     {
                         background.Color = new Color("#f7ec74");
+
                     }
                     else if ((r == botFromRow && c == botFromCol) || (r == botToRow && c == botToCol))
                     {
-                        background.Color = new Color(0.15f, 0.45f, 0.68f, 0.4f); // Plavi Lichess trag
+                        // background.Color = new Color("#cdd26a", 0.6f); // Suptilna, poluprozirna Lichess žuta
+                        // Spoljašnja boja postaje čvrst, neprovidan Lichess žuti okvir
+                        background.Color = new Color("#cdd26a");
+
+                        // Pravimo unutrašnju masku koja vraća originalnu boju polja u sredinu
+                        ColorRect innerMask = new ColorRect();
+                        innerMask.Name = "InnerMask";
+                        innerMask.Color = baseColor;
+
+                        // Okvir debljine 2 piksela sa svih strana (2 levo + 2 desno = 4 manje od veličine tajla)
+                        float borderSize = 2f;
+                        innerMask.Size = new Vector2(tileSize - (borderSize * 2f), tileSize - (borderSize * 2f));
+                        innerMask.Position = new Vector2(borderSize, borderSize);
+
+                        background.AddChild(innerMask);
                     }
                     else if (validSquares.Contains($"{r},{c}") && ((isWhiteTurn && isBlackPiece) || (isBlackTurn && isWhitePiece)))
                     {

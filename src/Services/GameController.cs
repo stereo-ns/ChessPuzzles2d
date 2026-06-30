@@ -161,9 +161,15 @@ namespace ChessPuzzles2d.Services
 
                 if (moveSuccessful)
                 {
+                    // 🚀 LOGOVANJE POTEZA IGRAČA:
+                    MoveLoggerService.Instance.LogMessage("Match", $"PLAYER (White) moved from [{_selectedRow},{_selectedCol}] to [{row},{col}]");
+
                     _selectedRow = -1; _selectedCol = -1;
+                    _botFromRow = -1; _botFromCol = -1;
+                    _botToRow = -1; _botToCol = -1;
+
                     RefreshDisplay();
-                    UpdateTurnLabelText(); // AKO JE USPEH: Briše staru grešku i ispisuje novog igrača!
+                    UpdateTurnLabelText();
                     CheckForBotTurn();
                 }
                 else
@@ -310,9 +316,16 @@ namespace ChessPuzzles2d.Services
         private async void RunBotMove()
         {
             string currentFen = _boardState.GetFen();
+            MoveLoggerService.Instance.LogMessage("Stockfish", $"Bot requested move. Current FEN: {currentFen}");
+
             string bestMove = _stockfishService.GetBestMove(currentFen, 300);
 
-            if (string.IsNullOrEmpty(bestMove) || bestMove.Length < 4) return;
+            if (string.IsNullOrEmpty(bestMove) || bestMove.Length < 4)
+            {
+                // 🚀 LOGOVANJE GREŠKE MOTORA (Ako vrati prazno):
+                MoveLoggerService.Instance.LogMessage("Stockfish", "[CRITICAL ERROR]: Engine returned an empty or invalid move string!");
+                return;
+            }
 
             // 🚀 VEŠTAČKA PAUZA: Čekamo 1.2 sekunde da bot odglumi ljudsko razmišljanje
             await ToSignal(GetTree().CreateTimer(1.2f), "timeout");
@@ -333,11 +346,17 @@ namespace ChessPuzzles2d.Services
 
             if (success)
             {
+                MoveLoggerService.Instance.LogMessage("Match", $"BOT (Black) executed move: {bestMove} (Translated to: [{fromRow},{fromCol}] -> [{toRow},{toCol}])");
                 Callable.From(() =>
                 {
                     RefreshDisplay();
                     UpdateTurnLabelText();
                 }).CallDeferred();
+            }
+            else
+            {
+                // 🚀 LOGOVANJE NELEGALNOG POTEZA BOTA:
+                MoveLoggerService.Instance.LogMessage("Match", $"[CRITICAL ERROR]: Bot attempted illegal move according to ChessDotNet: {bestMove}");
             }
         }
         private void OnSliderValueChanged(double value)
