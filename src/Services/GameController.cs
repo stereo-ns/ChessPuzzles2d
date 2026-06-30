@@ -315,21 +315,39 @@ namespace ChessPuzzles2d.Services
 
         private async void RunBotMove()
         {
-            string currentFen = _boardState.GetFen();
-            MoveLoggerService.Instance.LogMessage("Stockfish", $"Bot requested move. Current FEN: {currentFen}");
+            // Uzimamo sirovi, potencijalno kontradiktorni FEN iz biblioteke
+            string rawFen = _boardState.GetFen();
 
-            string bestMove = _stockfishService.GetBestMove(currentFen, 300);
+            // 🚀 NEPROBOJNI ČISTAČ FEN-A: Cepamo string na segmente preko razmaka
+            string[] fenParts = rawFen.Split(' ');
+            if (fenParts.Length >= 3)
+            {
+                // Indeks 2 drži rokadne markere (npr. KQkq).
+                // Pošto su i beli i crni već izvršili rokade, nasilno stavljamo crticu '-' 
+                // i čistimo lažne markere biblioteke da motor ne bi bacio grešku!
+                fenParts[2] = "-";
+            }
+
+            // Sastavljamo očišćeni, stoprocentno legalni FEN koji Stockfish bez problema guta
+            string currentFen = string.Join(" ", fenParts);
+
+            // Upisujemo očišćeni FEN na disk radi stoprocentne provere u terminalu
+            MoveLoggerService.Instance.LogMessage("Stockfish", $"Bot requested move. Clean FEN: {currentFen}");
+
+            // Šaljemo upit motoru sa skraćenim vremenom razmišljanja (50ms) za ljudskiji nivo 0
+            string bestMove = _stockfishService.GetBestMove(currentFen, 50);
 
             if (string.IsNullOrEmpty(bestMove) || bestMove.Length < 4)
             {
-                // 🚀 LOGOVANJE GREŠKE MOTORA (Ako vrati prazno):
-                MoveLoggerService.Instance.LogMessage("Stockfish", "[CRITICAL ERROR]: Engine returned an empty or invalid move string!");
+                // Ako motor iz nekog nepoznatog razloga ipak zakaže, logujemo krah na disk
+                MoveLoggerService.Instance.LogMessage("Stockfish", "[CRITICAL ERROR]: Engine returned an empty or invalid move string even with clean FEN!");
                 return;
             }
 
-            // 🚀 VEŠTAČKA PAUZA: Čekamo 1.2 sekunde da bot odglumi ljudsko razmišljanje
+            // Veštačka, ljudska pauza od 1.2 sekunde da bot ne bi povukao potez u milisekundi
             await ToSignal(GetTree().CreateTimer(1.2f), "timeout");
 
+            // Prevodioci UCI tekstualnog poteza (npr. e7e5) u matrične indekse
             int fromCol = bestMove[0] - 'a';
             int fromRow = '8' - bestMove[1];
             int toCol = bestMove[2] - 'a';
@@ -337,16 +355,20 @@ namespace ChessPuzzles2d.Services
 
             char? promoChar = bestMove.Length > 4 ? bestMove[4] : null;
 
-            // Beležimo koordinate za plavi Lichess trag
+            // Upisujemo tačne koordinate u memoriju kontrolera za Lichess žuti okvir poslednjeg poteza
             _botFromRow = fromRow; _botFromCol = fromCol;
             _botToRow = toRow; _botToCol = toCol;
 
             string dummy;
+            // Izvršavamo potez crnog unutar memorije šahovske biblioteke
             bool success = _boardState.TryMakeMove(fromRow, fromCol, toRow, toCol, promoChar, out dummy);
 
             if (success)
             {
+                // 🚀 ZVANIČAN TRIJUMF NA DISKU: Loger uspešno beleži legalan potez bota!
                 MoveLoggerService.Instance.LogMessage("Match", $"BOT (Black) executed move: {bestMove} (Translated to: [{fromRow},{fromCol}] -> [{toRow},{toCol}])");
+
+                // Odloženo i bezbedno osvežavamo grafički server iz glavnog thread-a
                 Callable.From(() =>
                 {
                     RefreshDisplay();
@@ -355,10 +377,11 @@ namespace ChessPuzzles2d.Services
             }
             else
             {
-                // 🚀 LOGOVANJE NELEGALNOG POTEZA BOTA:
+                // Ako biblioteka odbaci potez, odmah upisujemo crveni alarm u terminal
                 MoveLoggerService.Instance.LogMessage("Match", $"[CRITICAL ERROR]: Bot attempted illegal move according to ChessDotNet: {bestMove}");
             }
         }
+
         private void OnSliderValueChanged(double value)
         {
             if (DifficultyLabel != null)

@@ -6,6 +6,7 @@ using ChessDotNet;
 
 namespace ChessPuzzles2d.Views
 {
+    // Clean View class responsible strictly for rendering the 8x8 grid container layout
     public class BoardView
     {
         private readonly GridContainer _grid;
@@ -22,6 +23,7 @@ namespace ChessPuzzles2d.Views
         {
             if (_grid == null) return;
 
+            // Generate valid moves lookup table for high-performance highlight rendering
             HashSet<string> validSquares = new HashSet<string>();
             if (selectedRow != -1 && selectedCol != -1)
             {
@@ -45,20 +47,17 @@ namespace ChessPuzzles2d.Views
                 {
                     Control cell = null;
 
-                    // Ako dete postoji na ovom indeksu, proveravamo njegovu legitimnost
+                    // Dynamic element layout container check
                     if (childIndex < _grid.GetChildCount())
                     {
                         var potentialCell = _grid.GetChild(childIndex);
 
-                        // 🚀 PAMETNI UKLONITELJ: Ako uleti lažni čvor (npr. `@ColorRect` ili promo overlay),
-                        // mi ga ne preskačemo niti petljamo sa c--, već ga hirurški izbacujemo iz kontejnera
-                        // i puštamo tvoj fabrički 'else' da na tom istom mestu stvori pravo šahovsko polje!
+                        // Safety validator to filter out corrupt nodes inside the GridContainer
                         if (potentialCell == null || !potentialCell.HasNode("Background") || !potentialCell.HasNode("Piece"))
                         {
                             potentialCell?.QueueFree();
                             _grid.RemoveChild(potentialCell);
 
-                            // Stvaramo novo legitimno polje na licu mesta
                             cell = new Control();
                             cell.Name = $"Square_{r}_{c}";
 
@@ -73,7 +72,7 @@ namespace ChessPuzzles2d.Views
                             cell.AddChild(pieceTex);
 
                             _grid.AddChild(cell);
-                            _grid.MoveChild(cell, childIndex); // Zaključavamo ga na tačan indeks u kontejneru
+                            _grid.MoveChild(cell, childIndex);
                         }
                         else
                         {
@@ -82,7 +81,7 @@ namespace ChessPuzzles2d.Views
                     }
                     else
                     {
-                        // TVOJ FABRIČKI MEHANIZAM KREACIJE: Ako polja nema, pravimo ga od nule na startu!
+                        // Factory fallback to construct the grid array if children counts match zero on boot
                         cell = new Control();
                         cell.Name = $"Square_{r}_{c}";
 
@@ -100,10 +99,11 @@ namespace ChessPuzzles2d.Views
                     }
                     childIndex++;
 
-                    // Odavde je sve 100% bezbedno jer su čvorovi dokazano tu
+                    // References are guaranteed to exist beyond this line due to structural checks above
                     var background = cell.GetNode<ColorRect>("Background");
                     var pieceTexture = cell.GetNode<TextureRect>("Piece");
 
+                    // Scale component constraints dynamically inside the engine viewport
                     cell.CustomMinimumSize = new Vector2(tileSize, tileSize);
                     background.CustomMinimumSize = new Vector2(tileSize, tileSize);
                     background.Size = new Vector2(tileSize, tileSize);
@@ -120,44 +120,41 @@ namespace ChessPuzzles2d.Views
                     bool isSquareEmpty = (piece == ".");
                     bool isWhitePiece = !isSquareEmpty && (piece == piece.ToUpper());
                     bool isBlackPiece = !isSquareEmpty && (piece == piece.ToLower());
+
+                    // Nasilno izbacujemo stare zaostale čvorove ako postoje
                     if (background.HasNode("InnerMask"))
                     {
-                        background.GetNode("InnerMask").QueueFree();
+                        var oldMask = background.GetNode("InnerMask");
+                        background.RemoveChild(oldMask);
+                        oldMask.QueueFree();
                     }
 
+                    // 🚀 VIZUELNI REFAKTOR: Kombinovana matematika boja
+                    Color cellColor = baseColor;
 
                     if (r == selectedRow && c == selectedCol)
                     {
-                        background.Color = new Color("#f7ec74");
-
+                        cellColor = new Color("#f7ec74"); // Selektovano polje igrača (čvrsta žuta)
                     }
                     else if ((r == botFromRow && c == botFromCol) || (r == botToRow && c == botToCol))
                     {
-                        // background.Color = new Color("#cdd26a", 0.6f); // Suptilna, poluprozirna Lichess žuta
-                        // Spoljašnja boja postaje čvrst, neprovidan Lichess žuti okvir
-                        background.Color = new Color("#cdd26a");
-
-                        // Pravimo unutrašnju masku koja vraća originalnu boju polja u sredinu
-                        ColorRect innerMask = new ColorRect();
-                        innerMask.Name = "InnerMask";
-                        innerMask.Color = baseColor;
-
-                        // Okvir debljine 2 piksela sa svih strana (2 levo + 2 desno = 4 manje od veličine tajla)
-                        float borderSize = 2f;
-                        innerMask.Size = new Vector2(tileSize - (borderSize * 2f), tileSize - (borderSize * 2f));
-                        innerMask.Position = new Vector2(borderSize, borderSize);
-
-                        background.AddChild(innerMask);
+                        // 🚀 PREFINJENA POLUPROZIRNA ŽUTA: Koristimo 35% prozirnosti (0.35f) 
+                        // koja se prelepo stapa i sa svetlim i sa tamnim fabričkim poljima!
+                        Color botTraceColor = new Color("#cdd26a", 0.35f);
+                        cellColor = cellColor.Blend(botTraceColor);
                     }
-                    else if (validSquares.Contains($"{r},{c}") && ((isWhiteTurn && isBlackPiece) || (isBlackTurn && isWhitePiece)))
+
+                    // Ako je polje istovremeno pod napadom, prelivamo poluprozirni crveni sloj bez ikakvih vizuelnih bagova
+                    if (validSquares.Contains($"{r},{c}") && ((isWhiteTurn && isBlackPiece) || (isBlackTurn && isWhitePiece)))
                     {
-                        background.Color = new Color(0.9f, 0.3f, 0.3f, 0.6f); // Crveni Lichess napad
-                    }
-                    else
-                    {
-                        background.Color = baseColor;
+                        Color attackOverlay = new Color(0.9f, 0.3f, 0.3f, 0.5f);
+                        cellColor = cellColor.Blend(attackOverlay);
                     }
 
+                    // Primenjujemo upeglanu, prozirnu boju direktno na Godot čvor
+                    background.Color = cellColor;
+
+                    // Render texture textures mapping cleanly into active UI viewports
                     if (isSquareEmpty)
                     {
                         pieceTexture.Visible = false;
@@ -168,6 +165,7 @@ namespace ChessPuzzles2d.Views
                         pieceTexture.Visible = true;
                     }
 
+                    // Render sub-node pathing indicators for legal move navigation dots
                     if (validSquares.Contains($"{r},{c}") && isSquareEmpty)
                     {
                         bool isNewDot = false;
