@@ -1,7 +1,7 @@
 <Project Sdk="Godot.NET.Sdk/4.5.2">
   <PropertyGroup>
-    <!-- REŠENJE ZA ŠABLON: Prelazimo na net9.0 da ispratimo Android 15+ standarde šablona -->
-    <TargetFramework>net9.0</TargetFramework>
+    <!-- REŠENJE: Prelazimo na net10.0 da u potpunosti iskoristimo instalirani .NET 10 SDK -->
+    <TargetFramework>net10.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     
     <!-- ŠTIT PROTIV CRVENILA: Sve privremene Android fajlove bacamo u 
@@ -10,7 +10,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- NuGet paket koji .NET 9 podržava fabrički čist -->
     <PackageReference Include="ChessDotNet" Version="1.0.0" />
+    <!-- Uvoz zvaničnog WebAssembly runtime-a kompatibilnog sa .NET 10 -->
+    <PackageReference Include="Wasmtime" Version="34.0.2" />
+  </ItemGroup>
+
+  <!-- Bezbedno pakovanje Stockfish-a unutar aplikacije kao Embedded Resource -->
+  <ItemGroup>
+    <EmbeddedResource Include="data\stockfish.wasm">
+      <LogicalName>stockfish.wasm</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>
