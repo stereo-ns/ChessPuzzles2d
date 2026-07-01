@@ -34,6 +34,10 @@ namespace ChessPuzzles2d.Services
         private int _botToRow = -1, _botToCol = -1;
         int selectedSkill = 5;
         private bool _isGameActive = false; // Na samom startu igra miruje i zaključana je!
+        private int _moveCount = 1;
+        private string _lastWhiteMoveText = "---";
+        private string _lastBlackMoveText = "---";
+
 
 
         private float _currentTileSize = 81f;
@@ -74,11 +78,13 @@ namespace ChessPuzzles2d.Services
                 // Kačimo čist delegat za promenu vrednosti
                 DifficultySlider.ValueChanged += OnSliderValueChanged;
 
-                // Postavljamo početni tekst čim se igra upali
+                // Unutar _Ready():
                 if (DifficultyLabel != null)
                 {
-                    DifficultyLabel.Text = "Izabrana težina: Nivo 5";
+                    // Koristimo string.Format da bezbedno ubacimo broj nivoa u prevedeni šablon
+                    DifficultyLabel.Text = string.Format(LocalizationService.Instance.Translate("LBL_DIFFICULTY"), 5);
                 }
+
             }
 
 
@@ -91,8 +97,8 @@ namespace ChessPuzzles2d.Services
             _stockfishService.StartEngine(5);
             if (RestartButton != null)
             {
-                RestartButton.Text = "KRENI IGRU"; // Menjamo tekst iz Restart u New Game mod
-                RestartButton.Visible = true;      // Prisno palimo vidljivost na startu ekrana!
+                RestartButton.Text = LocalizationService.Instance.Translate("BTN_STORE");
+                RestartButton.Visible = true;
             }
         }
 
@@ -120,11 +126,12 @@ namespace ChessPuzzles2d.Services
 
         private void HandleSquareSelection(int row, int col)
         {
-            if (DebugLabel != null)
-            {
-                string pieceAtSquare = _boardState.GetPieceAt(row, col);
-                DebugLabel.Text = $"[DEBUG EKRAN]: Kliknuto na polje [{row},{col}] | Figura u memoriji: '{pieceAtSquare}'";
-            }
+            // if (DebugLabel != null)
+            // {
+            //     string pieceAtSquare = _boardState.GetPieceAt(row, col);
+            //     DebugLabel.Text = $"[DEBUG EKRAN]: Kliknuto na polje [{row},{col}] | Figura u memoriji: '{pieceAtSquare}'";
+            // }
+
 
             if (_boardState.IsCheckmated(_boardState.CurrentTurn) || _boardState.IsDraw()) return;
 
@@ -161,8 +168,14 @@ namespace ChessPuzzles2d.Services
 
                 if (moveSuccessful)
                 {
-                    // 🚀 LOGOVANJE POTEZA IGRAČA:
                     MoveLoggerService.Instance.LogMessage("Match", $"PLAYER (White) moved from [{_selectedRow},{_selectedCol}] to [{row},{col}]");
+
+                    // Čist šahovski zapis poteza bez dodataka
+                    char fromFile = (char)('a' + _selectedCol);
+                    int fromRank = 8 - _selectedRow;
+                    char toFile = (char)('a' + col);
+                    int toRank = 8 - row;
+                    _lastWhiteMoveText = $"{fromFile}{fromRank}{toFile}{toRank}";
 
                     _selectedRow = -1; _selectedCol = -1;
                     _botFromRow = -1; _botFromCol = -1;
@@ -170,11 +183,14 @@ namespace ChessPuzzles2d.Services
 
                     RefreshDisplay();
                     UpdateTurnLabelText();
+                    UpdateDebugLabelText();
                     CheckForBotTurn();
                 }
                 else
                 {
-                    if (TurnLabel != null) TurnLabel.Text = $"GREŠKA: {illegalReason.ToUpper()}";
+                    // Greška ide isključivo na disk i u konzolu, ekran ostaje čist
+                    MoveLoggerService.Instance.LogMessage("Match", $"ILLEGAL MOVE ATTEMPT: {illegalReason}");
+
                     _selectedRow = -1; _selectedCol = -1;
                     RefreshDisplay();
                 }
@@ -189,7 +205,7 @@ namespace ChessPuzzles2d.Services
 
                     if ((isWhiteTurn && !isWhitePiece) || (!isWhiteTurn && isWhitePiece))
                     {
-                        if (TurnLabel != null) TurnLabel.Text = "GREŠKA: NIJE VAŠ RED!";
+                        MoveLoggerService.Instance.LogMessage("Match", "SELECTION ERROR: Not player's turn or wrong piece color.");
                         return;
                     }
 
@@ -226,6 +242,14 @@ namespace ChessPuzzles2d.Services
 
         private void OnRestartButtonPressed()
         {
+            _moveCount = 1;
+            _lastWhiteMoveText = "---";
+            _lastBlackMoveText = "---";
+
+            if (TurnLabel != null)
+            {
+                TurnLabel.Text = ""; // Praznimo turnLabel prema zahtevu
+            }
             _isGameActive = true;
             // 1. Gasimo stari pozadinski Stockfish proces ako postoji od prošle partije
             _stockfishService?.StopEngine();
@@ -235,9 +259,9 @@ namespace ChessPuzzles2d.Services
             if (DifficultySlider != null)
             {
                 selectedSkill = (int)DifficultySlider.Value;
-                DifficultySlider.Editable = false; // Zaključavamo slajder tokom partije da nema varanja!
-                // DifficultySlider.ReleaseFocus();
-                // DifficultySlider.FocusMode = Control.FocusModeEnum.None;
+                // Ažuriramo centralnu konfiguraciju na osnovu vrednosti slajdera
+                GameConfig.Instance.UpdateBotDifficulty(selectedSkill);
+                DifficultySlider.Editable = false;
             }
 
             // 3. Budimo novu šahovsku tablu u memoriji i palimo bota sa tačnim nivoom (0-20)
@@ -252,7 +276,7 @@ namespace ChessPuzzles2d.Services
             // 5. Menjamo natpis na dugmetu u "RESTART" i sakrivamo ga dok se partija zvanično ne završi
             if (RestartButton != null)
             {
-                RestartButton.Text = "RESTART";
+                RestartButton.Text = LocalizationService.Instance.Translate("BTN_RESTART_GAME");
                 RestartButton.Visible = false;
             }
 
@@ -266,29 +290,37 @@ namespace ChessPuzzles2d.Services
         {
             if (TurnLabel == null || RestartButton == null) return;
 
-            string koIgra = _boardState.CurrentTurn == ChessDotNet.Player.White ? "BELI" : "CRNI";
-
             if (_boardState.IsCheckmated(_boardState.CurrentTurn))
             {
-                string winner = _boardState.CurrentTurn == ChessDotNet.Player.White ? "CRNI" : "BELI";
-                TurnLabel.Text = $"KRAJ: MAT! POBEDNIK JE {winner}!";
+                // 1. Dinamički biramo jezik iz konfiguracije
+                bool isEn = GameConfig.Instance.CurrentLanguage == GameConfig.Language.En;
+
+                // 2. Prevodimo reči za pobednika
+                string winnerColor = _boardState.CurrentTurn == ChessDotNet.Player.White ? (isEn ? "BLACK" : "CRNI") : (isEn ? "WHITE" : "BELI");
+                string endText = isEn ? $"GAME OVER: CHECKMATE! WINNER: {winnerColor}" : $"KRAJ: MAT! POBEDNIK: {winnerColor}";
+
+                TurnLabel.Text = endText;
                 RestartButton.Visible = true;
+                if (DifficultySlider != null) DifficultySlider.Editable = true;
             }
             else if (_boardState.IsDraw())
             {
-                TurnLabel.Text = "KRAJ: REZULTAT JE NEREŠEN!";
+                // Prevodimo tekst za nerešen rezultat
+                bool isEn = GameConfig.Instance.CurrentLanguage == GameConfig.Language.En;
+                TurnLabel.Text = isEn ? "GAME OVER: DRAW!" : "KRAJ: REZULTAT JE NEREŠEN!";
+
                 RestartButton.Visible = true;
-            }
-            // PROVERA ŠAHA: Pozivamo stabilnu metodu iz tvog omotača
-            else if (_boardState.IsInCheck(_boardState.CurrentTurn))
-            {
-                TurnLabel.Text = $"ŠAH! NA POTEZU: {koIgra}";
+                if (DifficultySlider != null) DifficultySlider.Editable = true;
             }
             else
             {
-                TurnLabel.Text = $"NA POTEZU: {koIgra}";
+                TurnLabel.Text = ""; // Tokom aktivne igre labela ostaje potpuno prazna
             }
         }
+
+
+
+
 
         private void RefreshDisplay()
         {
@@ -335,7 +367,7 @@ namespace ChessPuzzles2d.Services
             MoveLoggerService.Instance.LogMessage("Stockfish", $"Bot requested move. Clean FEN: {currentFen}");
 
             // Šaljemo upit motoru sa skraćenim vremenom razmišljanja (50ms) za ljudskiji nivo 0
-            string bestMove = _stockfishService.GetBestMove(currentFen, 50);
+            string bestMove = _stockfishService.GetBestMove(currentFen);
 
             if (string.IsNullOrEmpty(bestMove) || bestMove.Length < 4)
             {
@@ -366,13 +398,17 @@ namespace ChessPuzzles2d.Services
             if (success)
             {
                 // 🚀 ZVANIČAN TRIJUMF NA DISKU: Loger uspešno beleži legalan potez bota!
-                MoveLoggerService.Instance.LogMessage("Match", $"BOT (Black) executed move: {bestMove} (Translated to: [{fromRow},{fromCol}] -> [{toRow},{toCol}])");
+                MoveLoggerService.Instance.LogMessage("Match", $"BOT (Black) executed move: {bestMove}");
 
-                // Odloženo i bezbedno osvežavamo grafički server iz glavnog thread-a
+                // Upisujemo tačan potez bota i uvećavamo brojač poteza za sledeći krug
+                _lastBlackMoveText = bestMove;
+
                 Callable.From(() =>
                 {
                     RefreshDisplay();
                     UpdateTurnLabelText();
+                    UpdateDebugLabelText(); // Osvežavamo debug ekran nakon što je bot odigrao
+                    _moveCount++; // Uvećavamo broj poteza tek kada ceo krug (beli + crni) bude završen
                 }).CallDeferred();
             }
             else
@@ -386,7 +422,21 @@ namespace ChessPuzzles2d.Services
         {
             if (DifficultyLabel != null)
             {
-                DifficultyLabel.Text = $"Izabrana težina: Nivo {value}";
+                DifficultyLabel.Text = string.Format(LocalizationService.Instance.Translate("LBL_DIFFICULTY"), (int)value);
+            }
+        }
+        private void UpdateDebugLabelText()
+        {
+            if (DebugLabel != null)
+            {
+                // Dinamički biramo prevod za oznake na osnovu jezika u GameConfig-u
+                bool isEn = GameConfig.Instance.CurrentLanguage == GameConfig.Language.En;
+
+                string moveWord = isEn ? "Move" : "Potez";
+                string whiteWord = isEn ? "White" : "Beli";
+                string blackWord = isEn ? "Black" : "Crni";
+
+                DebugLabel.Text = $"{moveWord}: {_moveCount} | {whiteWord}: {_lastWhiteMoveText} | {blackWord}: {_lastBlackMoveText}";
             }
         }
 

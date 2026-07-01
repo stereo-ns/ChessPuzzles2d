@@ -14,18 +14,20 @@ LanguageSrButton = NodePath("LanguageSrButton")
 LanguageEnButton = NodePath("LanguageEnButton")
 
 [node name="LanguageSrButton" type="Button" parent="."]
-layout_mode = 0
-offset_left = 200.0
+layout_mode = 1
+offset_left = 175.0
 offset_top = 350.0
-offset_right = 261.0
-offset_bottom = 381.0
+offset_right = 275.0
+offset_bottom = 390.0
+pivot_offset = Vector2(50, 20)
 text = "SRPSKI
 "
 
 [node name="LanguageEnButton" type="Button" parent="."]
 layout_mode = 0
-offset_left = 200.0
+offset_left = 175.0
 offset_top = 450.0
-offset_right = 276.0
-offset_bottom = 481.0
+offset_right = 275.0
+offset_bottom = 490.0
+pivot_offset = Vector2(50, 20)
 text = "ENGLISH"

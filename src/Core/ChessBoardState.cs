@@ -64,7 +64,6 @@ namespace ChessPuzzles2d.Core
             Position from = new Position((File)fromCol, 8 - fromRow);
             Position to = new Position((File)toCol, 8 - toRow);
 
-            // Čitamo koja figura pokušava da se pomeri unutar biblioteke
             string piece = GetPieceAt(fromRow, fromCol).ToUpper();
 
             Move move;
@@ -78,27 +77,27 @@ namespace ChessPuzzles2d.Core
                 move = new Move(from, to, CurrentTurn);
             }
 
-            // Ako je potez regularan i potpuno ispravan po pravilima biblioteke
             if (_game.IsValidMove(move))
             {
                 _game.MakeMove(move, true);
                 return true;
             }
 
-            // 🚀 STRUKTURNI ŠTIT ZA PROMOCIJU: 
-            // Ako je u pitanju pešak ('P') koji uspešno stiže na zadnji red (0 za belog, 7 za crnog),
-            // a parametar za izbor figure je još uvek 'null', svesno vraćamo strogu reč "PROMOCIJA"!
-            // To nalaže kontroleru da zaustavi redovni tok i odmah upali grafički overlay za odabir dame!
+            // POPRAVKA: Proveravamo legalnost poteza simulacijom promocije u kraljicu
             if (piece == "P" && (toRow == 0 || toRow == 7) && promotionTarget == null)
             {
-                illegalReason = "PROMOCIJA";
-                return false;
+                Move testPromoMove = new Move(from, to, CurrentTurn, 'Q');
+                if (_game.IsValidMove(testPromoMove))
+                {
+                    illegalReason = "PROMOCIJA";
+                    return false;
+                }
             }
 
-            // Standardni odbrambeni odgovor za sve ostale nelegalne pokušaje na tabli
             illegalReason = "Nelegalan potez po pravilima šaha.";
             return false;
         }
+
 
         public string GetFen()
         {
