@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/z/GP/ChessPuzzles2d/src/Native/build_android/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

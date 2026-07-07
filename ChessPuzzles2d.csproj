@@ -1,7 +1,10 @@
 <Project Sdk="Godot.NET.Sdk/4.5.2">
   <PropertyGroup>
     <!-- REŠENJE: Prelazimo na net10.0 da u potpunosti iskoristimo instalirani .NET 10 SDK -->
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
+    <!-- Ako gradnja gađa Android, dodajemo oznaku GODOT_ANDROID u listu konstanti -->
+    <DefineConstants Condition="'$(GodotTargetPlatform)' == 'android'">$(DefineConstants);GODOT_ANDROID</DefineConstants>
+
     <EnableDynamicLoading>true</EnableDynamicLoading>
     
     <!-- ŠTIT PROTIV CRVENILA: Sve privremene Android fajlove bacamo u 

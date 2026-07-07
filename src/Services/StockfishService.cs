@@ -1,82 +1,109 @@
 using System;
-using System.Collections.Generic;
-using Godot;
 using System.IO;
-using System.Reflection;
-using System.Threading.Tasks; // Neophodno za Task.Run asinhronu petlju bota
-using Wasmtime;
-
+using System.Diagnostics;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Godot;
 
 namespace ChessPuzzles2d.Services
 {
     public class StockfishService
     {
-        private Wasmtime.Engine _engine;
-        private Wasmtime.Store _store;
-        private Wasmtime.Linker _linker;
-        private Wasmtime.Instance _instance;
-        private string _inputFilePath;
-        private string _outputFilePath;
+        private Process _botProcess;
+        private StreamWriter _processInput;
+        private StreamReader _processOutput;
 
-        // Zacementirana tačna lokacija sa tvog Slackware find-a!
+        private readonly List<string> _engineOutputLines = new List<string>();
+        private readonly object _lockObject = new object();
+        private bool _isOutputLoopRunning;
 
         public void StartEngine(int skillLevel)
         {
             try
             {
-                _engine = new Wasmtime.Engine();
-                _linker = new Wasmtime.Linker(_engine);
+                _engineOutputLines.Clear();
+                string executablePath = "";
 
-                _store = new Wasmtime.Store(_engine);
-
-                // 1. POSTAVLJANJE PRIVREMENIH FAJLOVA ZA UCI KOMUNIKACIJU
-                _inputFilePath = Godot.ProjectSettings.GlobalizePath("user://wasm_stdin.txt");
-                _outputFilePath = Godot.ProjectSettings.GlobalizePath("user://wasm_stdout.txt");
-
-                // Brišemo staru istoriju i pravimo čiste prazne fajlove pri startu meča
-                File.WriteAllText(_inputFilePath, string.Empty);
-                File.WriteAllText(_outputFilePath, string.Empty);
-
-                // Konfigurišemo WASI da koristi ove fajlove kao Standard Input i Output
-                var wasiConfig = new WasiConfiguration();
-                wasiConfig.WithStandardInput(_inputFilePath);
-                wasiConfig.WithStandardOutput(_outputFilePath);
-
-                _store.SetWasiConfiguration(wasiConfig);
-                _linker.DefineWasi();
-
-                // 2. Čitanje ugrađenog stockfish.wasm fajla iz resursa sklopa
-                var assembly = Assembly.GetExecutingAssembly();
-                using (Stream stream = assembly.GetManifestResourceStream("stockfish.wasm"))
+                if (OS.HasFeature("android"))
                 {
-                    if (stream == null)
+                    // REŠENJE: Puna i apsolutna interna putanja aplikacije na Androidu
+                    string userDir = ProjectSettings.GlobalizePath("user://");
+                    executablePath = Path.Combine(userDir, "stockfish_android");
+
+                    // Kopiramo tekstualni fajl iz Godot resursa na lokalni disk telefona
+                    if (!File.Exists(executablePath))
                     {
-                        MoveLoggerService.Instance.LogMessage("Stockfish", "[KRITIČNA GREŠKA]: Resurs 'stockfish.wasm' nije pronađen u sklopu!");
-                        return;
+                        using (var godotFile = Godot.FileAccess.Open("res://data/stockfish_android.txt", Godot.FileAccess.ModeFlags.Read))
+                        {
+                            if (godotFile != null)
+                            {
+                                byte[] binaryData = godotFile.GetBuffer((long)godotFile.GetLength());
+                                File.WriteAllBytes(executablePath, binaryData);
+                                GD.Print("Stockfish === [ANDROID]: Successfully extracted binary bytes from APK to storage. ===");
+                            }
+                            else
+                            {
+                                GD.Print("Stockfish === [ERROR]: Godot.FileAccess could not open res://data/stockfish_android.txt! ===");
+                            }
+                        }
                     }
 
-                    var module = Wasmtime.Module.FromStream(_engine, "stockfish.wasm", stream);
-                    _instance = _linker.Instantiate(_store, module);
+                    // Dodajemo izvršna prava fajlu na disku telefona
+                    var chmodProcess = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "chmod",
+                        Arguments = $"+x \"{executablePath}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    });
+                    chmodProcess?.WaitForExit();
+
+                    GD.Print("Stockfish === [ANDROID]: Unpacked successfully to user:// and chmod +x completed. ===");
                 }
 
-                // 3. POPRAVKA: GetAction prima isključivo JEDAN argument (ime funkcije)
-                var mainAction = _instance.GetAction("_start");
-                if (mainAction != null)
+                else
                 {
-                    // Pokrećemo akciju unutar pozadinske niti bez ikakvih argumenata
-                    Task.Run(() => mainAction());
+                    // Logika za vaš Slackware računar
+                    executablePath = "/usr/games/stockfish";
                 }
 
-                // Aktivacija UCI interfejsa
+                // POKRETANJE PROCESA (Identično i za računar i za telefon)
+                _botProcess = new Process();
+                _botProcess.StartInfo.FileName = executablePath;
+                _botProcess.StartInfo.UseShellExecute = false;
+                _botProcess.StartInfo.RedirectStandardInput = true;
+                _botProcess.StartInfo.RedirectStandardOutput = true;
+                _botProcess.StartInfo.CreateNoWindow = true;
+
+                _botProcess.Start();
+                _processInput = _botProcess.StandardInput;
+                _processOutput = _botProcess.StandardOutput;
+
+                _isOutputLoopRunning = true;
+                Task.Run(() =>
+                {
+                    while (_isOutputLoopRunning && _processOutput != null)
+                    {
+                        string line = _processOutput.ReadLine();
+                        if (!string.IsNullOrEmpty(line))
+                        {
+                            lock (_lockObject)
+                            {
+                                _engineOutputLines.Add(line);
+                            }
+                        }
+                    }
+                });
+
+                // Slanje standardnog UCI protokola (Sada uvek sadrži reč Stockfish na početku)
                 SendCommand("uci");
 
-                // 4. Podešavanje parametara težine
                 if (skillLevel < 5)
                 {
                     SendCommand("setoption name UCI_LimitStrength value true");
                     SendCommand("setoption name UCI_Elo value 1320");
                     SendCommand("setoption name Use NNUE value false");
-                    SendCommand("setoption name Skill Level value 0");
+                    SendCommand("setoption name Skill Level value " + skillLevel);
                 }
                 else
                 {
@@ -86,11 +113,11 @@ namespace ChessPuzzles2d.Services
                 }
 
                 SendCommand("isready");
-                MoveLoggerService.Instance.LogMessage("Stockfish", $"[WASM CONFIRMED]: SF 17.1 Lite podignut na nivou: {skillLevel}");
+                GD.Print("Stockfish === [ENGINE READY]: Process pipeline active for Level: " + skillLevel + " ===");
             }
             catch (Exception ex)
             {
-                MoveLoggerService.Instance.LogMessage("Stockfish", $"[CRITICAL ERROR] in Wasm StartEngine: {ex.Message}");
+                GD.Print("Stockfish === [CRITICAL ERROR] in StartEngine: " + ex.Message + " ===");
             }
         }
 
@@ -98,19 +125,26 @@ namespace ChessPuzzles2d.Services
         {
             try
             {
-                if (string.IsNullOrEmpty(_inputFilePath)) return;
-                // Upisujemo komandu u fajl i dodajemo novi red da motor zna da je komanda završena
-                File.AppendAllText(_inputFilePath, command + "\n");
+                if (string.IsNullOrEmpty(command)) return;
+
+                lock (_lockObject)
+                {
+                    _processInput?.WriteLine(command);
+                    GD.Print("Stockfish === [UCI IN]: " + command + " ===");
+                }
             }
             catch (Exception ex)
             {
-                MoveLoggerService.Instance.LogMessage("Stockfish", $"[GREŠKA UPISA]: {ex.Message}");
+                GD.Print("Stockfish === [WRITE ERROR]: " + ex.Message + " ===");
             }
         }
 
         public string GetBestMove(string fenPosition)
         {
-            if (string.IsNullOrEmpty(_outputFilePath)) return string.Empty;
+            lock (_lockObject)
+            {
+                _engineOutputLines.Clear();
+            }
 
             SendCommand($"position fen {fenPosition}");
 
@@ -129,32 +163,28 @@ namespace ChessPuzzles2d.Services
             }
 
             List<string> foundMoves = new List<string>();
-
-            // Čitamo izlazni fajl u petlji dok ne stigne potvrda o najboljem potezu
             bool thinking = true;
             int timeoutCheck = 0;
 
-            while (thinking && timeoutCheck < 200) // Sigurnosni kočioni mehanizam od ~2 sekunde max
+            while (thinking && timeoutCheck < 200)
             {
-                System.Threading.Thread.Sleep(10); // Kratka pauza da ne opteretimo procesor
+                System.Threading.Thread.Sleep(10);
                 timeoutCheck++;
 
-                try
+                lock (_lockObject)
                 {
-                    if (!File.Exists(_outputFilePath)) continue;
-
-                    // Čitamo sve generisane linije iz fajla
-                    string[] lines = File.ReadAllLines(_outputFilePath);
-                    foreach (string line in lines)
+                    for (int i = 0; i < _engineOutputLines.Count; i++)
                     {
+                        string line = _engineOutputLines[i];
+
                         if (line.Contains(" pv "))
                         {
                             string[] tokens = line.Split(' ');
-                            for (int i = 0; i < tokens.Length; i++)
+                            for (int j = 0; j < tokens.Length; j++)
                             {
-                                if (tokens[i] == "pv" && i + 1 < tokens.Length)
+                                if (tokens[j] == "pv" && j + 1 < tokens.Length)
                                 {
-                                    string candidateMove = tokens[i + 1];
+                                    string candidateMove = tokens[j + 1];
                                     if (!foundMoves.Contains(candidateMove) && candidateMove.Length >= 4)
                                     {
                                         foundMoves.Add(candidateMove);
@@ -175,13 +205,8 @@ namespace ChessPuzzles2d.Services
                         }
                     }
                 }
-                catch
-                {
-                    // Tiho preskačemo ako je fajl bio zaključan tokom upisa u tom milisekunde frejmu
-                }
             }
 
-            // DINAMIČKA MATEMATIKA SABOTAŽE ZA NIVOE 0 - 4 (Kôd koji smo upeglali)
             if (currentLevel < 5 && foundMoves.Count > 0)
             {
                 int blunderIndex = 0;
@@ -200,36 +225,36 @@ namespace ChessPuzzles2d.Services
                         break;
                 }
 
-                MoveLoggerService.Instance.LogMessage("Stockfish", $"[LEVEL CONTROL]: Level {currentLevel} triggered. Selected move index {blunderIndex}: '{foundMoves[blunderIndex]}'");
+                GD.Print("Stockfish === [LEVEL CONTROL]: Alternative index " + blunderIndex + ": " + foundMoves[blunderIndex] + " ===");
                 return foundMoves[blunderIndex];
             }
 
             return string.Empty;
         }
 
-
         public void StopEngine()
         {
             try
             {
                 SendCommand("quit");
+                _isOutputLoopRunning = false;
 
-                // Bezbedno oslobađamo Wasmtime resurse iz memorije
-                _instance = null;
-                _store?.Dispose();
-                _engine?.Dispose();
+                if (_botProcess != null && !_botProcess.HasExited)
+                {
+                    _botProcess.Kill();
+                    _botProcess.Dispose();
+                }
 
-                // Brišemo privremene tekstualne fajlove sa diska
-                if (File.Exists(_inputFilePath)) File.Delete(_inputFilePath);
-                if (File.Exists(_outputFilePath)) File.Delete(_outputFilePath);
+                _processInput = null;
+                _processOutput = null;
 
-                GD.Print("[STOCKFISH WASM]: Memorija i privremene datoteke uspešno očišćeni.");
+                lock (_lockObject) { _engineOutputLines.Clear(); }
+                GD.Print("Stockfish === [STOCKFISH ENGINE]: Process pipeline closed successfully. ===");
             }
             catch
             {
-                // Tiho prizemljenje
+                // Tiho gašenje resursa
             }
         }
-
     }
 }

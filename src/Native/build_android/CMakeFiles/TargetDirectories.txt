@@ -1,0 +1,4 @@
+/home/z/GP/ChessPuzzles2d/src/Native/build_android/CMakeFiles/stockfish_lite.dir
+/home/z/GP/ChessPuzzles2d/src/Native/build_android/CMakeFiles/stockfish_android.dir
+/home/z/GP/ChessPuzzles2d/src/Native/build_android/CMakeFiles/edit_cache.dir
+/home/z/GP/ChessPuzzles2d/src/Native/build_android/CMakeFiles/rebuild_cache.dir

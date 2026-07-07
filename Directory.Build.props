@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\.godot\mono\temp\obj\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(MSBuildProjectDirectory)\.godot\mono\temp\obj\</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+</Project>
+

@@ -47,7 +47,8 @@ namespace ChessPuzzles2d.Services
 
         public override void _Ready()
         {
-            GD.Print("=== ChessPuzzles2d: Inicijalizacija sistema ===");
+            string OSName = Godot.OS.GetName();
+            GD.Print($"=== TEST - OPERATIVNI SISTEM JE: [{OSName}] ===");
 
             if (BoardGrid == null || ChessPiecesAtlas == null || TurnLabel == null || RestartButton == null)
             {
@@ -317,11 +318,6 @@ namespace ChessPuzzles2d.Services
                 TurnLabel.Text = ""; // Tokom aktivne igre labela ostaje potpuno prazna
             }
         }
-
-
-
-
-
         private void RefreshDisplay()
         {
             if (_isWaitingForPromotion)
