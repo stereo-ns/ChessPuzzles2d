@@ -14,6 +14,8 @@ namespace ChessPuzzles2d.Services
         public int BotSkillLevel { get; set; } = 5;
         public int BotMaxSearchDepth { get; set; } = 5;
         public int BotThinkTimeMilliseconds { get; set; } = 50;
+        public int LowLevelMoveTimeDesktop { get; set; } = 20;
+        public int LowLevelMoveTimeAndroid { get; set; } = 100;
 
         private GameConfig()
         {

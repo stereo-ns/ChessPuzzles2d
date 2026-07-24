@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
+using System.Text.RegularExpressions;
 
 namespace ChessPuzzles2d.Services
 {
@@ -26,41 +27,20 @@ namespace ChessPuzzles2d.Services
 
                 if (OS.HasFeature("android"))
                 {
-                    // REŠENJE: Puna i apsolutna interna putanja aplikacije na Androidu
-                    string userDir = ProjectSettings.GlobalizePath("user://");
-                    executablePath = Path.Combine(userDir, "stockfish_android");
+                    // Android 10+ blokira izvršavanje fajlova iz user:// (W^X/noexec).
+                    // Jedina exec-enabled putanja je nativeLibraryDir, gde sistem sam
+                    // ekstraktuje .so fajlove iz APK-a (lib/arm64-v8a/).
+                    var androidHelper = ((SceneTree)Engine.GetMainLoop()).Root.GetNode("AndroidHelper");
+                    string nativeLibDir = (string)androidHelper.Call("get_native_lib_dir");
 
-                    // Kopiramo tekstualni fajl iz Godot resursa na lokalni disk telefona
-                    if (!File.Exists(executablePath))
+                    if (string.IsNullOrEmpty(nativeLibDir))
                     {
-                        using (var godotFile = Godot.FileAccess.Open("res://data/stockfish_android.txt", Godot.FileAccess.ModeFlags.Read))
-                        {
-                            if (godotFile != null)
-                            {
-                                byte[] binaryData = godotFile.GetBuffer((long)godotFile.GetLength());
-                                File.WriteAllBytes(executablePath, binaryData);
-                                GD.Print("Stockfish === [ANDROID]: Successfully extracted binary bytes from APK to storage. ===");
-                            }
-                            else
-                            {
-                                GD.Print("Stockfish === [ERROR]: Godot.FileAccess could not open res://data/stockfish_android.txt! ===");
-                            }
-                        }
+                        GD.Print("Stockfish === [ANDROID ERROR]: nativeLibDir je prazan! Proveri AndroidHelper.gd ===");
                     }
 
-                    // Dodajemo izvršna prava fajlu na disku telefona
-                    var chmodProcess = Process.Start(new ProcessStartInfo
-                    {
-                        FileName = "chmod",
-                        Arguments = $"+x \"{executablePath}\"",
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    });
-                    chmodProcess?.WaitForExit();
-
-                    GD.Print("Stockfish === [ANDROID]: Unpacked successfully to user:// and chmod +x completed. ===");
+                    executablePath = Path.Combine(nativeLibDir, "libstockfish_lite.so");
+                    GD.Print("Stockfish === [ANDROID]: Using native lib dir: " + nativeLibDir + " ===");
                 }
-
                 else
                 {
                     // Logika za vaš Slackware računar
@@ -73,11 +53,22 @@ namespace ChessPuzzles2d.Services
                 _botProcess.StartInfo.UseShellExecute = false;
                 _botProcess.StartInfo.RedirectStandardInput = true;
                 _botProcess.StartInfo.RedirectStandardOutput = true;
+                _botProcess.StartInfo.RedirectStandardError = true;
                 _botProcess.StartInfo.CreateNoWindow = true;
-
                 _botProcess.Start();
+
                 _processInput = _botProcess.StandardInput;
                 _processOutput = _botProcess.StandardOutput;
+
+                // Čitanje stderr u pozadini - korisno ako engine ikad padne, da vidimo zašto
+                Task.Run(() =>
+                {
+                    string errLine;
+                    while ((errLine = _botProcess.StandardError.ReadLine()) != null)
+                    {
+                        GD.Print("Stockfish === [STDERR]: " + errLine + " ===");
+                    }
+                });
 
                 _isOutputLoopRunning = true;
                 Task.Run(() =>
@@ -85,6 +76,8 @@ namespace ChessPuzzles2d.Services
                     while (_isOutputLoopRunning && _processOutput != null)
                     {
                         string line = _processOutput.ReadLine();
+                        GD.Print("Stockfish === [RAW OUT]: " + line + " ===");
+                        if (line == null) break;
                         if (!string.IsNullOrEmpty(line))
                         {
                             lock (_lockObject)
@@ -95,20 +88,20 @@ namespace ChessPuzzles2d.Services
                     }
                 });
 
-                // Slanje standardnog UCI protokola (Sada uvek sadrži reč Stockfish na početku)
+                // Slanje standardnog UCI protokola
                 SendCommand("uci");
 
                 if (skillLevel < 5)
                 {
                     SendCommand("setoption name UCI_LimitStrength value true");
                     SendCommand("setoption name UCI_Elo value 1320");
-                    SendCommand("setoption name Use NNUE value false");
+                    // SendCommand("setoption name Use NNUE value false");
                     SendCommand("setoption name Skill Level value " + skillLevel);
                 }
                 else
                 {
                     SendCommand("setoption name UCI_LimitStrength value false");
-                    SendCommand("setoption name Use NNUE value true");
+                    // SendCommand("setoption name Use NNUE value true");
                     SendCommand("setoption name Skill Level value " + skillLevel);
                 }
 
@@ -120,7 +113,6 @@ namespace ChessPuzzles2d.Services
                 GD.Print("Stockfish === [CRITICAL ERROR] in StartEngine: " + ex.Message + " ===");
             }
         }
-
         public void SendCommand(string command)
         {
             try
@@ -153,7 +145,12 @@ namespace ChessPuzzles2d.Services
             if (currentLevel < 5)
             {
                 SendCommand("setoption name MultiPV value 4");
-                SendCommand("go movetime 20");
+                // Mobilni CPU je sporiji - treba mu duže da stigne da ispiše
+                // barem jednu "pv" liniju pre isteka movetime-a
+                int lowLevelMoveTime = OS.HasFeature("android")
+    ? GameConfig.Instance.LowLevelMoveTimeAndroid
+    : GameConfig.Instance.LowLevelMoveTimeDesktop;
+                SendCommand($"go movetime {lowLevelMoveTime}");
             }
             else
             {
@@ -185,7 +182,13 @@ namespace ChessPuzzles2d.Services
                                 if (tokens[j] == "pv" && j + 1 < tokens.Length)
                                 {
                                     string candidateMove = tokens[j + 1];
-                                    if (!foundMoves.Contains(candidateMove) && candidateMove.Length >= 4)
+                                    // if (!foundMoves.Contains(candidateMove) && candidateMove.Length >= 4)
+                                    // {
+                                    //     foundMoves.Add(candidateMove);
+                                    // }
+                                    bool isValidMove = Regex.IsMatch(candidateMove, "^[a-h][1-8][a-h][1-8][qrbn]?$");
+
+                                    if (isValidMove && !foundMoves.Contains(candidateMove))
                                     {
                                         foundMoves.Add(candidateMove);
                                     }
@@ -202,6 +205,20 @@ namespace ChessPuzzles2d.Services
                                 if (tokens.Length > 1) return tokens[1];
                             }
                             break;
+                        }
+                        else
+                        {
+                            // NOVO: fallback — ako nijedna "pv" linija nije uhvaćena na vreme,
+                            // koristi pravi bestmove potez umesto da vratiš prazan string
+                            string[] tokens = line.Split(' ');
+                            // if (foundMoves.Count == 0 && tokens.Length > 1 && tokens[1].Length >= 4)
+                            // {
+                            //     foundMoves.Add(tokens[1]);
+                            // }
+                            if (foundMoves.Count == 0 && tokens.Length > 1 && Regex.IsMatch(tokens[1], "^[a-h][1-8][a-h][1-8][qrbn]?$"))
+                            {
+                                foundMoves.Add(tokens[1]);
+                            }
                         }
                     }
                 }
