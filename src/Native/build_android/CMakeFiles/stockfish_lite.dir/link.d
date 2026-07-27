@@ -28,9 +28,8 @@ libstockfish_lite.so: \
  /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26/liblog.so \
  /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/21/lib/linux/aarch64/libatomic.a \
  /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26/libm.so \
- /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26/libc++.a \
- /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_static.a \
- /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++abi.a \
+ /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26/libc++.so \
+ /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so \
  /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a \
  /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/21/lib/linux/aarch64/libunwind.a \
  /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26/libdl.so \
@@ -95,11 +94,9 @@ CMakeFiles/stockfish_lite.dir/ucioption.cpp.o:
 
 /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26/libm.so:
 
-/home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26/libc++.a:
+/home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/26/libc++.so:
 
-/home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_static.a:
-
-/home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++abi.a:
+/home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so:
 
 /home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a:
 

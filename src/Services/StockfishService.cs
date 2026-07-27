@@ -18,8 +18,9 @@ namespace ChessPuzzles2d.Services
         private readonly object _lockObject = new object();
         private bool _isOutputLoopRunning;
 
-        private string _androidBigNnuePath;
+        // private string _androidBigNnuePath;
         private string _androidSmallNnuePath;
+        private string _androidNativeLibDir;
 
         public void StartEngine(int skillLevel)
         {
@@ -32,7 +33,7 @@ namespace ChessPuzzles2d.Services
                 {
                     string userDir = ProjectSettings.GlobalizePath("user://");
 
-                    _androidBigNnuePath = CopyNnueIfNeeded(userDir, "nn-1c0000000000.nnue");
+                    // _androidBigNnuePath = CopyNnueIfNeeded(userDir, "nn-1c0000000000.nnue");
                     _androidSmallNnuePath = CopyNnueIfNeeded(userDir, "nn-37f18f62d772.nnue");
 
                     // Android 10+ blokira izvršavanje fajlova iz user:// (W^X/noexec).
@@ -47,6 +48,7 @@ namespace ChessPuzzles2d.Services
                     }
 
                     executablePath = Path.Combine(nativeLibDir, "libstockfish_lite.so");
+                    _androidNativeLibDir = nativeLibDir;
                     GD.Print("Stockfish === [ANDROID]: Using native lib dir: " + nativeLibDir + " ===");
                 }
                 else
@@ -66,6 +68,11 @@ namespace ChessPuzzles2d.Services
                 _botProcess.StartInfo.WorkingDirectory = OS.HasFeature("android")
                     ? ProjectSettings.GlobalizePath("user://")
                     : "/usr/games";
+
+                if (OS.HasFeature("android") && !string.IsNullOrEmpty(_androidNativeLibDir))
+                {
+                    _botProcess.StartInfo.EnvironmentVariables["LD_LIBRARY_PATH"] = _androidNativeLibDir;
+                }
                 _botProcess.Start();
 
                 _processInput = _botProcess.StandardInput;
@@ -106,7 +113,7 @@ namespace ChessPuzzles2d.Services
 
                 if (OS.HasFeature("android"))
                 {
-                    SendCommand($"setoption name EvalFile value {_androidBigNnuePath}");
+                    // SendCommand($"setoption name EvalFile value {_androidBigNnuePath}");
                     SendCommand($"setoption name EvalFileSmall value {_androidSmallNnuePath}");
                 }
 

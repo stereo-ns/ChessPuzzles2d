@@ -252,7 +252,7 @@ void Engine::set_ponderhit(bool b) { threads.main_manager()->ponder = b; }
 // network related
 
 void Engine::verify_networks() const {
-    networks->big.verify(options["EvalFile"], onVerifyNetworks);
+    // networks->big.verify(options["EvalFile"], onVerifyNetworks);
     networks->small.verify(options["EvalFileSmall"], onVerifyNetworks);
 }
 

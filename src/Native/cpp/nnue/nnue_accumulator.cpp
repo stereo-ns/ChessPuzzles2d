@@ -79,18 +79,30 @@ AccumulatorState& AccumulatorStack::mut_latest() noexcept {
     return m_accumulators[m_current_idx - 1];
 }
 
+// void AccumulatorStack::reset(const Position&    rootPos,
+//                              const Networks&    networks,
+//                              AccumulatorCaches& caches) noexcept {
+//     m_current_idx = 1;
+
+//     update_accumulator_refresh_cache<WHITE, TransformedFeatureDimensionsBig,
+//                                      &AccumulatorState::accumulatorBig>(
+//       *networks.big.featureTransformer, rootPos, m_accumulators[0], caches.big);
+//     update_accumulator_refresh_cache<BLACK, TransformedFeatureDimensionsBig,
+//                                      &AccumulatorState::accumulatorBig>(
+//       *networks.big.featureTransformer, rootPos, m_accumulators[0], caches.big);
+
+//     update_accumulator_refresh_cache<WHITE, TransformedFeatureDimensionsSmall,
+//                                      &AccumulatorState::accumulatorSmall>(
+//       *networks.small.featureTransformer, rootPos, m_accumulators[0], caches.small);
+//     update_accumulator_refresh_cache<BLACK, TransformedFeatureDimensionsSmall,
+//                                      &AccumulatorState::accumulatorSmall>(
+//       *networks.small.featureTransformer, rootPos, m_accumulators[0], caches.small);
+// }
 void AccumulatorStack::reset(const Position&    rootPos,
                              const Networks&    networks,
                              AccumulatorCaches& caches) noexcept {
     m_current_idx = 1;
-
-    update_accumulator_refresh_cache<WHITE, TransformedFeatureDimensionsBig,
-                                     &AccumulatorState::accumulatorBig>(
-      *networks.big.featureTransformer, rootPos, m_accumulators[0], caches.big);
-    update_accumulator_refresh_cache<BLACK, TransformedFeatureDimensionsBig,
-                                     &AccumulatorState::accumulatorBig>(
-      *networks.big.featureTransformer, rootPos, m_accumulators[0], caches.big);
-
+    // LITE BUILD: big accumulator refresh preskocen, big mreza se ne koristi
     update_accumulator_refresh_cache<WHITE, TransformedFeatureDimensionsSmall,
                                      &AccumulatorState::accumulatorSmall>(
       *networks.small.featureTransformer, rootPos, m_accumulators[0], caches.small);
@@ -98,7 +110,6 @@ void AccumulatorStack::reset(const Position&    rootPos,
                                      &AccumulatorState::accumulatorSmall>(
       *networks.small.featureTransformer, rootPos, m_accumulators[0], caches.small);
 }
-
 void AccumulatorStack::push(const DirtyPiece& dirtyPiece) noexcept {
     assert(m_current_idx + 1 < m_accumulators.size());
     m_accumulators[m_current_idx].reset(dirtyPiece);

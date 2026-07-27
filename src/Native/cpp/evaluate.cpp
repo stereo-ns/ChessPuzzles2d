@@ -45,9 +45,12 @@ int Eval::simple_eval(const Position& pos, Color c) {
          + (pos.non_pawn_material(c) - pos.non_pawn_material(~c));
 }
 
+// bool Eval::use_smallnet(const Position& pos) {
+//     int simpleEval = simple_eval(pos, pos.side_to_move());
+//     return std::abs(simpleEval) > 962;
+// }
 bool Eval::use_smallnet(const Position& pos) {
-    int simpleEval = simple_eval(pos, pos.side_to_move());
-    return std::abs(simpleEval) > 962;
+    return true;  // LITE BUILD: uvek koristi malu mrežu, big net se ne učitava
 }
 
 // Evaluate is the evaluator for the outer world. It returns a static evaluation
@@ -67,12 +70,12 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     Value nnue = (125 * psqt + 131 * positional) / 128;
 
     // Re-evaluate the position when higher eval accuracy is worth the time spent
-    if (smallNet && (std::abs(nnue) < 236))
-    {
-        std::tie(psqt, positional) = networks.big.evaluate(pos, accumulators, &caches.big);
-        nnue                       = (125 * psqt + 131 * positional) / 128;
-        smallNet                   = false;
-    }
+    // if (smallNet && (std::abs(nnue) < 236))
+    // {
+    //     std::tie(psqt, positional) = networks.big.evaluate(pos, accumulators, &caches.big);
+    //     nnue                       = (125 * psqt + 131 * positional) / 128;
+    //     smallNet                   = false;
+    // }
 
     // Blend optimism and eval with nnue complexity
     int nnueComplexity = std::abs(psqt - positional);

@@ -28,7 +28,7 @@
 using namespace Stockfish;
 
 int main(int argc, char* argv[]) {
-
+    std::cout << "SANITY_CHECK_MARKER_12345" << std::endl;
     std::cout << engine_info() << std::endl;
 
     Bitboards::init();

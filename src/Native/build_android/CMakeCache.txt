@@ -21,7 +21,7 @@ ANDROID_ABI:UNINITIALIZED=arm64-v8a
 ANDROID_PLATFORM:UNINITIALIZED=android-26
 
 //No help, variable specified on the command line.
-ANDROID_STL:UNINITIALIZED=c++_static
+ANDROID_STL:UNINITIALIZED=c++_shared
 
 //Path to a program.
 CMAKE_ADDR2LINE:FILEPATH=/home/z/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-addr2line

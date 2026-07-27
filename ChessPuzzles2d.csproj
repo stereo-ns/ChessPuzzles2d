@@ -14,14 +14,5 @@
 
   <ItemGroup>
     <PackageReference Include="ChessDotNet" Version="1.0.0" />
-    <!-- Uvoz zvaničnog WebAssembly runtime-a kompatibilnog sa .NET 10 -->
-    <PackageReference Include="Wasmtime" Version="34.0.2" />
-  </ItemGroup>
-
-  <!-- Bezbedno pakovanje Stockfish-a unutar aplikacije kao Embedded Resource -->
-  <ItemGroup>
-    <EmbeddedResource Include="data\stockfish.wasm">
-      <LogicalName>stockfish.wasm</LogicalName>
-    </EmbeddedResource>
   </ItemGroup>
 </Project>

@@ -148,6 +148,9 @@ Network<Arch, Transformer>::operator=(const Network<Arch, Transformer>& other) {
 
 template<typename Arch, typename Transformer>
 void Network<Arch, Transformer>::load(const std::string& rootDirectory, std::string evalfilePath) {
+    std::cout << "info string DEBUG load(): evalfilePath=[" << evalfilePath
+           << "] evalFile.current=[" << evalFile.current
+           << "] evalFile.defaultName=[" << evalFile.defaultName << "]" << std::endl;
 #if defined(DEFAULT_NNUE_DIRECTORY)
     std::vector<std::string> dirs = {"<internal>", "", rootDirectory,
                                      stringify(DEFAULT_NNUE_DIRECTORY)};
@@ -241,6 +244,9 @@ Network<Arch, Transformer>::evaluate(const Position&                         pos
 template<typename Arch, typename Transformer>
 void Network<Arch, Transformer>::verify(std::string                                  evalfilePath,
                                         const std::function<void(std::string_view)>& f) const {
+      std::cerr << "DEBUG verify(): evalfilePath=[" << evalfilePath
+           << "] evalFile.current=[" << evalFile.current
+           << "] evalFile.defaultName=[" << evalFile.defaultName << "]" << std::endl;                                      
     if (evalfilePath.empty())
         evalfilePath = evalFile.defaultName;
 
