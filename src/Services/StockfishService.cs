@@ -3,8 +3,8 @@ using System.IO;
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Godot;
 using System.Text.RegularExpressions;
+using Godot;
 
 namespace ChessPuzzles2d.Services
 {
@@ -18,6 +18,9 @@ namespace ChessPuzzles2d.Services
         private readonly object _lockObject = new object();
         private bool _isOutputLoopRunning;
 
+        private string _androidBigNnuePath;
+        private string _androidSmallNnuePath;
+
         public void StartEngine(int skillLevel)
         {
             try
@@ -27,6 +30,11 @@ namespace ChessPuzzles2d.Services
 
                 if (OS.HasFeature("android"))
                 {
+                    string userDir = ProjectSettings.GlobalizePath("user://");
+
+                    _androidBigNnuePath = CopyNnueIfNeeded(userDir, "nn-1c0000000000.nnue");
+                    _androidSmallNnuePath = CopyNnueIfNeeded(userDir, "nn-37f18f62d772.nnue");
+
                     // Android 10+ blokira izvršavanje fajlova iz user:// (W^X/noexec).
                     // Jedina exec-enabled putanja je nativeLibraryDir, gde sistem sam
                     // ekstraktuje .so fajlove iz APK-a (lib/arm64-v8a/).
@@ -55,6 +63,9 @@ namespace ChessPuzzles2d.Services
                 _botProcess.StartInfo.RedirectStandardOutput = true;
                 _botProcess.StartInfo.RedirectStandardError = true;
                 _botProcess.StartInfo.CreateNoWindow = true;
+                _botProcess.StartInfo.WorkingDirectory = OS.HasFeature("android")
+                    ? ProjectSettings.GlobalizePath("user://")
+                    : "/usr/games";
                 _botProcess.Start();
 
                 _processInput = _botProcess.StandardInput;
@@ -76,8 +87,10 @@ namespace ChessPuzzles2d.Services
                     while (_isOutputLoopRunning && _processOutput != null)
                     {
                         string line = _processOutput.ReadLine();
+                        if (line == null) break; // stream zatvoren / proces mrtav
+
                         GD.Print("Stockfish === [RAW OUT]: " + line + " ===");
-                        if (line == null) break;
+
                         if (!string.IsNullOrEmpty(line))
                         {
                             lock (_lockObject)
@@ -91,17 +104,21 @@ namespace ChessPuzzles2d.Services
                 // Slanje standardnog UCI protokola
                 SendCommand("uci");
 
+                if (OS.HasFeature("android"))
+                {
+                    SendCommand($"setoption name EvalFile value {_androidBigNnuePath}");
+                    SendCommand($"setoption name EvalFileSmall value {_androidSmallNnuePath}");
+                }
+
                 if (skillLevel < 5)
                 {
                     SendCommand("setoption name UCI_LimitStrength value true");
                     SendCommand("setoption name UCI_Elo value 1320");
-                    // SendCommand("setoption name Use NNUE value false");
                     SendCommand("setoption name Skill Level value " + skillLevel);
                 }
                 else
                 {
                     SendCommand("setoption name UCI_LimitStrength value false");
-                    // SendCommand("setoption name Use NNUE value true");
                     SendCommand("setoption name Skill Level value " + skillLevel);
                 }
 
@@ -113,6 +130,35 @@ namespace ChessPuzzles2d.Services
                 GD.Print("Stockfish === [CRITICAL ERROR] in StartEngine: " + ex.Message + " ===");
             }
         }
+
+        private string CopyNnueIfNeeded(string userDir, string nnueFileName)
+        {
+            string destPath = Path.Combine(userDir, nnueFileName);
+
+            if (!File.Exists(destPath))
+            {
+                using (var godotFile = Godot.FileAccess.Open($"res://data/{nnueFileName}", Godot.FileAccess.ModeFlags.Read))
+                {
+                    if (godotFile != null)
+                    {
+                        byte[] netData = godotFile.GetBuffer((long)godotFile.GetLength());
+                        File.WriteAllBytes(destPath, netData);
+                        GD.Print($"Stockfish === [ANDROID]: {nnueFileName} copied, size: {netData.Length} bytes ===");
+                    }
+                    else
+                    {
+                        GD.Print($"Stockfish === [ANDROID ERROR]: res://data/{nnueFileName} NE POSTOJI u APK-u! ===");
+                    }
+                }
+            }
+            else
+            {
+                GD.Print($"Stockfish === [ANDROID]: {nnueFileName} vec postoji, velicina: {new FileInfo(destPath).Length} bytes ===");
+            }
+
+            return destPath;
+        }
+
         public void SendCommand(string command)
         {
             try
@@ -145,11 +191,9 @@ namespace ChessPuzzles2d.Services
             if (currentLevel < 5)
             {
                 SendCommand("setoption name MultiPV value 4");
-                // Mobilni CPU je sporiji - treba mu duže da stigne da ispiše
-                // barem jednu "pv" liniju pre isteka movetime-a
                 int lowLevelMoveTime = OS.HasFeature("android")
-    ? GameConfig.Instance.LowLevelMoveTimeAndroid
-    : GameConfig.Instance.LowLevelMoveTimeDesktop;
+                    ? GameConfig.Instance.LowLevelMoveTimeAndroid
+                    : GameConfig.Instance.LowLevelMoveTimeDesktop;
                 SendCommand($"go movetime {lowLevelMoveTime}");
             }
             else
@@ -162,6 +206,7 @@ namespace ChessPuzzles2d.Services
             List<string> foundMoves = new List<string>();
             bool thinking = true;
             int timeoutCheck = 0;
+            const string movePattern = "^[a-h][1-8][a-h][1-8][qrbn]?$";
 
             while (thinking && timeoutCheck < 200)
             {
@@ -182,13 +227,7 @@ namespace ChessPuzzles2d.Services
                                 if (tokens[j] == "pv" && j + 1 < tokens.Length)
                                 {
                                     string candidateMove = tokens[j + 1];
-                                    // if (!foundMoves.Contains(candidateMove) && candidateMove.Length >= 4)
-                                    // {
-                                    //     foundMoves.Add(candidateMove);
-                                    // }
-                                    bool isValidMove = Regex.IsMatch(candidateMove, "^[a-h][1-8][a-h][1-8][qrbn]?$");
-
-                                    if (isValidMove && !foundMoves.Contains(candidateMove))
+                                    if (Regex.IsMatch(candidateMove, movePattern) && !foundMoves.Contains(candidateMove))
                                     {
                                         foundMoves.Add(candidateMove);
                                     }
@@ -199,26 +238,19 @@ namespace ChessPuzzles2d.Services
                         if (line.StartsWith("bestmove"))
                         {
                             thinking = false;
+
+                            string[] tokens = line.Split(' ');
+
                             if (currentLevel >= 5)
                             {
-                                string[] tokens = line.Split(' ');
                                 if (tokens.Length > 1) return tokens[1];
                             }
-                            break;
-                        }
-                        else
-                        {
-                            // NOVO: fallback — ako nijedna "pv" linija nije uhvaćena na vreme,
-                            // koristi pravi bestmove potez umesto da vratiš prazan string
-                            string[] tokens = line.Split(' ');
-                            // if (foundMoves.Count == 0 && tokens.Length > 1 && tokens[1].Length >= 4)
-                            // {
-                            //     foundMoves.Add(tokens[1]);
-                            // }
-                            if (foundMoves.Count == 0 && tokens.Length > 1 && Regex.IsMatch(tokens[1], "^[a-h][1-8][a-h][1-8][qrbn]?$"))
+                            else if (foundMoves.Count == 0 && tokens.Length > 1 && Regex.IsMatch(tokens[1], movePattern))
                             {
                                 foundMoves.Add(tokens[1]);
                             }
+
+                            break;
                         }
                     }
                 }
