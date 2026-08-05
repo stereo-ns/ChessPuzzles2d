@@ -15,6 +15,8 @@ namespace ChessPuzzles2d.Services
         [Export] public Label DebugLabel { get; set; }
         [Export] public HSlider DifficultySlider { get; set; }
         [Export] public Label DifficultyLabel { get; set; }
+        [Export] public Button ResignButton { get; set; }
+        [Export] public Button UndoButton { get; set; }
 
         private ChessBoardState _boardState;
         private PieceAtlasService _atlasService;
@@ -43,6 +45,8 @@ namespace ChessPuzzles2d.Services
 
         private bool _isWaitingForPromotion = false;
         private int _promoFromRow, _promoFromCol, _promoToRow, _promoToCol;
+        private List<(int fromRow, int fromCol, int toRow, int toCol, char? promo)> _moveHistory = new();
+        private bool _isBotThinking = false;
 
         public override void _Ready()
         {
@@ -94,6 +98,18 @@ namespace ChessPuzzles2d.Services
                 RestartButton.Text = LocalizationService.Instance.Translate("BTN_STORE");
                 RestartButton.Visible = true;
             }
+            if (UndoButton != null)
+            {
+                UndoButton.Text = LocalizationService.Instance.Translate("BTN_UNDO");
+            }
+
+            if (ResignButton != null)
+            {
+                ResignButton.Text = LocalizationService.Instance.Translate("BTN_RESIGN");
+            }
+            if (UndoButton != null) UndoButton.Pressed += () => OnUndoButtonPressed();
+            if (ResignButton != null) ResignButton.Pressed += () => OnResignButtonPressed();
+            UpdateActionButtonsState();
         }
 
         public override void _ExitTree()
@@ -151,7 +167,7 @@ namespace ChessPuzzles2d.Services
                     _promoToRow = row; _promoToCol = col;
                     _selectedRow = -1; _selectedCol = -1;
                     RefreshDisplay();
-                    if (TurnLabel != null) TurnLabel.Text = "IZABERITE FIGURU NA TABLI!";
+                    if (TurnLabel != null) TurnLabel.Text = LocalizationService.Instance.Translate("LBL_PROMOTION");
                     return;
                 }
 
@@ -170,6 +186,7 @@ namespace ChessPuzzles2d.Services
                     _botToRow = -1; _botToCol = -1;
 
                     // NOVO: animiraj umesto trenutnog RefreshDisplay()-a
+                    _moveHistory.Add((fromRow, fromCol, row, col, null));
                     _isAnimating = true;
                     _boardView.AnimateMove(fromRow, fromCol, row, col, _currentTileSize, () =>
                     {
@@ -178,6 +195,7 @@ namespace ChessPuzzles2d.Services
                         UpdateTurnLabelText();
                         UpdateDebugLabelText();
                         CheckForBotTurn();
+                        UpdateActionButtonsState();
                     });
                 }
                 else
@@ -226,6 +244,7 @@ namespace ChessPuzzles2d.Services
                 int toRow = _promoToRow, toCol = _promoToCol;
 
                 string dummy;
+                _moveHistory.Add((fromRow, fromCol, toRow, toCol, selectedChoice));
                 _boardState.TryMakeMove(_promoFromRow, _promoFromCol, _promoToRow, _promoToCol, selectedChoice, out dummy);
                 _isWaitingForPromotion = false;
 
@@ -238,6 +257,7 @@ namespace ChessPuzzles2d.Services
                     RefreshDisplay();
                     UpdateTurnLabelText();
                     CheckForBotTurn();
+                    UpdateActionButtonsState();
                 });
             }
         }
@@ -255,8 +275,10 @@ namespace ChessPuzzles2d.Services
 
             _isGameActive = true;
             _isAnimating = false;
+            _moveHistory.Clear();
 
             _stockfishService?.StopEngine();
+            UpdateActionButtonsState();
 
             int selectedSkill = 5;
             if (DifficultySlider != null)
@@ -289,17 +311,17 @@ namespace ChessPuzzles2d.Services
 
             if (_boardState.IsCheckmated(_boardState.CurrentTurn))
             {
-                bool isEn = GameConfig.Instance.CurrentLanguage == GameConfig.Language.En;
-                string winnerColor = _boardState.CurrentTurn == ChessDotNet.Player.White ? (isEn ? "BLACK" : "CRNI") : (isEn ? "WHITE" : "BELI");
-                string endText = isEn ? $"GAME OVER: CHECKMATE! WINNER: {winnerColor}" : $"KRAJ: MAT! POBEDNIK: {winnerColor}";
-                TurnLabel.Text = endText;
+                _isGameActive = false;
+                string winnerKey = _boardState.CurrentTurn == ChessDotNet.Player.White ? "LBL_WINNER_BLACK" : "LBL_WINNER_WHITE";
+                string winnerColor = LocalizationService.Instance.Translate(winnerKey);
+                TurnLabel.Text = string.Format(LocalizationService.Instance.Translate("LBL_CHECKMATE_WIN"), winnerColor);
                 RestartButton.Visible = true;
                 if (DifficultySlider != null) DifficultySlider.Editable = true;
             }
             else if (_boardState.IsDraw())
             {
-                bool isEn = GameConfig.Instance.CurrentLanguage == GameConfig.Language.En;
-                TurnLabel.Text = isEn ? "GAME OVER: DRAW!" : "KRAJ: REZULTAT JE NEREŠEN!";
+                _isGameActive = false;
+                TurnLabel.Text = LocalizationService.Instance.Translate("LBL_DRAW");
                 RestartButton.Visible = true;
                 if (DifficultySlider != null) DifficultySlider.Editable = true;
             }
@@ -327,6 +349,7 @@ namespace ChessPuzzles2d.Services
         {
             if (_boardState.CurrentTurn == ChessDotNet.Player.Black && !_boardState.IsCheckmated(ChessDotNet.Player.Black) && !_boardState.IsDraw())
             {
+                _isBotThinking = true;
                 Callable.From(RunBotMove).CallDeferred();
             }
         }
@@ -366,6 +389,7 @@ namespace ChessPuzzles2d.Services
             {
                 MoveLoggerService.Instance.LogMessage("Match", $"BOT (Black) executed move: {bestMove}");
                 _lastBlackMoveText = bestMove;
+                _moveHistory.Add((fromRow, fromCol, toRow, toCol, promoChar));
 
                 // NOVO: postavi highlight koordinate PRE animacije, da se zuti trag
                 // pojavi tacno kad figura vizuelno stigne (u finalnom RefreshDisplay-u)
@@ -378,15 +402,19 @@ namespace ChessPuzzles2d.Services
                     _boardView.AnimateMove(fromRow, fromCol, toRow, toCol, _currentTileSize, () =>
                     {
                         _isAnimating = false;
+                        _isBotThinking = false;
                         RefreshDisplay();
                         UpdateTurnLabelText();
                         UpdateDebugLabelText();
+                        UpdateActionButtonsState();
                         _moveCount++;
                     });
                 }).CallDeferred();
             }
             else
             {
+                _isBotThinking = false;
+                UpdateActionButtonsState();
                 MoveLoggerService.Instance.LogMessage("Match", $"[CRITICAL ERROR]: Bot attempted illegal move according to ChessDotNet: {bestMove}");
             }
         }
@@ -403,12 +431,63 @@ namespace ChessPuzzles2d.Services
         {
             if (DebugLabel != null)
             {
-                bool isEn = GameConfig.Instance.CurrentLanguage == GameConfig.Language.En;
-                string moveWord = isEn ? "Move" : "Potez";
-                string whiteWord = isEn ? "White" : "Beli";
-                string blackWord = isEn ? "Black" : "Crni";
-                DebugLabel.Text = $"{moveWord}: {_moveCount} | {whiteWord}: {_lastWhiteMoveText} | {blackWord}: {_lastBlackMoveText}";
+                DebugLabel.Text = string.Format(
+                    LocalizationService.Instance.Translate("DBG_STATUS_LINE"),
+                    _moveCount, _lastWhiteMoveText, _lastBlackMoveText
+                );
             }
+        }
+        private void OnUndoButtonPressed()
+        {
+            if (!_isGameActive || _isAnimating || _isBotThinking) return;
+            if (_moveHistory.Count == 0) return;
+
+            // Vracamo tacno jedan pun krug (tvoj + botov potez) da igrac uvek
+            // dobije ponovo priliku da odigra kao Beli
+            int removeCount = _moveHistory.Count >= 2 ? 2 : 1;
+            _moveHistory.RemoveRange(_moveHistory.Count - removeCount, removeCount);
+
+            _boardState = new ChessBoardState();
+            foreach (var mv in _moveHistory)
+            {
+                string dummy;
+                _boardState.TryMakeMove(mv.fromRow, mv.fromCol, mv.toRow, mv.toCol, mv.promo, out dummy);
+            }
+
+            _selectedRow = -1; _selectedCol = -1;
+            _isWaitingForPromotion = false;
+            _botFromRow = -1; _botFromCol = -1; _botToRow = -1; _botToCol = -1;
+
+            if (_moveCount > 1) _moveCount--;
+
+            RefreshDisplay();
+            UpdateTurnLabelText();
+            UpdateDebugLabelText();
+            UpdateActionButtonsState();
+        }
+
+        private void OnResignButtonPressed()
+        {
+            if (!_isGameActive || _isAnimating || _isBotThinking) return;
+
+            string winnerColor = LocalizationService.Instance.Translate("LBL_WINNER_BLACK");
+            TurnLabel.Text = string.Format(LocalizationService.Instance.Translate("LBL_RESIGN_WIN"), winnerColor);
+
+            _isGameActive = false;
+            RestartButton.Visible = true;
+            if (DifficultySlider != null) DifficultySlider.Editable = true;
+            UpdateActionButtonsState();
+        }
+        private void UpdateActionButtonsState()
+        {
+            bool gameOver = !_isGameActive;
+            bool busy = _isAnimating || _isBotThinking;
+
+            if (UndoButton != null)
+                UndoButton.Disabled = gameOver || busy || _moveHistory.Count == 0;
+
+            if (ResignButton != null)
+                ResignButton.Disabled = gameOver || busy;
         }
     }
 }

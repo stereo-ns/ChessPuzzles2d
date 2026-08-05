@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://dn4rlph4mvjia" path="res://src/Services/GameController.cs" id="1_elqb8"]
 [ext_resource type="Texture2D" uid="uid://csfnkuo7c8p8e" path="res://assets/pieces/chess_pieces_atlas.png.png" id="2_rvslj"]
 
-[node name="Main" type="Node2D" node_paths=PackedStringArray("BoardGrid", "TurnLabel", "RestartButton", "DebugLabel", "DifficultySlider", "DifficultyLabel")]
+[node name="Main" type="Node2D" node_paths=PackedStringArray("BoardGrid", "TurnLabel", "RestartButton", "DebugLabel", "DifficultySlider", "DifficultyLabel", "ResignButton", "UndoButton")]
 script = ExtResource("1_elqb8")
 BoardGrid = NodePath("MainLayout/BoardContainer/ChessBoardGrid")
 ChessPiecesAtlas = ExtResource("2_rvslj")
@@ -12,6 +12,8 @@ RestartButton = NodePath("MainLayout/BottomPanel/RestartButton")
 DebugLabel = NodePath("MainLayout/BottomPanel/DebugLabel")
 DifficultySlider = NodePath("MainLayout/BottomPanel/DifficultySlider")
 DifficultyLabel = NodePath("MainLayout/BottomPanel/DifficultyLabel")
+ResignButton = NodePath("MainLayout/BottomPanel/Button2")
+UndoButton = NodePath("MainLayout/BottomPanel/UndoButton")
 
 [node name="MainLayout" type="VBoxContainer" parent="."]
 offset_right = 10.0
@@ -62,6 +64,14 @@ max_value = 20.0
 
 [node name="DifficultyLabel" type="Label" parent="MainLayout/BottomPanel"]
 layout_mode = 2
+
+[node name="UndoButton" type="Button" parent="MainLayout/BottomPanel"]
+layout_mode = 2
+text = "Undo"
+
+[node name="Button2" type="Button" parent="MainLayout/BottomPanel"]
+layout_mode = 2
+text = "Resign"
 
 [node name="GridContainer" type="GridContainer" parent="."]
 visible = false

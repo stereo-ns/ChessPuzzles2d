@@ -28,12 +28,17 @@ namespace ChessPuzzles2d.Services
             {
                 { "BTN_STORE", "ZAPOČNI IGRU" },
                 { "BTN_BACK_MENU", "NAZAD U MENI" },
-                { "BTN_RESTART_GAME", "RESTART" },
-                { "LBL_CHOOSE_MODE", "IZABERITE TEŽINU I KLIKNITE START!" },
-                { "LBL_TURN_WHITE", "NA POTEZU: BELI" },
-                { "LBL_TURN_BLACK", "RAČUNAR RAZMIŠLJA..." },
+                { "LBL_DIFFICULTY", "Izabrana težina: Nivo {0}" },
                 { "LBL_PROMOTION", "IZABERITE FIGURU NA TABLI!" },
-                { "LBL_DIFFICULTY", "Izabrana težina: Nivo {0}" }
+                { "BTN_RESTART_GAME", "RESTART" },
+                { "BTN_UNDO", "VRATI POTEZ" },
+                { "BTN_RESIGN", "PREDAJA" },
+                { "LBL_CHECKMATE_WIN", "KRAJ: MAT! POBEDNIK: {0}" },
+                { "LBL_RESIGN_WIN", "KRAJ: PREDAJA! POBEDNIK: {0}" },
+                { "LBL_DRAW", "KRAJ: REZULTAT JE NEREŠEN!" },
+                { "LBL_WINNER_WHITE", "BELI" },
+                { "LBL_WINNER_BLACK", "CRNI" },
+                { "DBG_STATUS_LINE", "Potez: {0} | Beli: {1} | Crni: {2}" },
             };
 
             // === ENGLISH LANGUAGE MAP ===
@@ -41,13 +46,17 @@ namespace ChessPuzzles2d.Services
             {
                 { "BTN_STORE", "START MATCH" }, // 🚀 FIKS: Engleski prevod za pokretanje
                 { "BTN_BACK_MENU", "BACK TO MENU" },
-                { "BTN_START_GAME", "START MATCH" },
+                { "LBL_DIFFICULTY", "Selected Difficulty: Level {0}" },
+                { "LBL_PROMOTION", "IZABERITE FIGURU NA TABLI!" },
                 { "BTN_RESTART_GAME", "RESTART" },
-                { "LBL_CHOOSE_MODE", "SELECT DIFFICULTY AND CLICK START!" },
-                { "LBL_TURN_WHITE", "TURN: WHITE" },
-                { "LBL_TURN_BLACK", "BOT IS THINKING..." },
-                { "LBL_PROMOTION", "CHOOSE PROMOTION PIECE ON THE BOARD!" },
-                { "LBL_DIFFICULTY", "Selected Difficulty: Level {0}" }
+                { "BTN_UNDO", "UNDO" },
+                { "BTN_RESIGN", "RESIGN" },
+                { "LBL_CHECKMATE_WIN", "GAME OVER: CHECKMATE! WINNER: {0}" },
+                { "LBL_RESIGN_WIN", "GAME OVER: RESIGNATION! WINNER: {0}" },
+                { "LBL_DRAW", "GAME OVER: DRAW!" },
+                { "LBL_WINNER_WHITE", "WHITE" },
+                { "LBL_WINNER_BLACK", "BLACK" },
+                { "DBG_STATUS_LINE", "Move: {0} | White: {1} | Black: {2}" },
             };
 
             _locales[GameConfig.Language.Sr] = srMap;
