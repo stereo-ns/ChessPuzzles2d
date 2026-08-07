@@ -143,6 +143,15 @@ namespace ChessPuzzles2d.Core
 
             return fen.ToString();
         }
+        public (int row, int col) GetKingPosition(Player player)
+        {
+            string kingChar = player == Player.White ? "K" : "k";
+            for (int r = 0; r < 8; r++)
+                for (int c = 0; c < 8; c++)
+                    if (GetPieceAt(r, c) == kingChar)
+                        return (r, c);
+            return (-1, -1);
+        }
 
     }
 }

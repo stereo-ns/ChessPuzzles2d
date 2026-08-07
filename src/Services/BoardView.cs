@@ -15,11 +15,25 @@ namespace ChessPuzzles2d.Views
         private readonly PieceAtlasService _atlas;
         private Control _piecesLayer;
 
+        private readonly GradientTexture2D _checkGlowTexture;
+
         public BoardView(GridContainer grid, PieceAtlasService atlas)
         {
             _grid = grid;
             _atlas = atlas;
             EnsurePiecesLayer();
+
+            var gradient = new Gradient();
+            gradient.SetColor(0, new Color(1f, 0f, 0f, 0f));
+            gradient.SetColor(1, new Color(1f, 0f, 0f, 0.9f));
+
+            _checkGlowTexture = new GradientTexture2D();
+            _checkGlowTexture.Gradient = gradient;
+            _checkGlowTexture.Fill = GradientTexture2D.FillEnum.Radial;
+            _checkGlowTexture.FillFrom = new Vector2(0.5f, 0.5f);
+            _checkGlowTexture.FillTo = new Vector2(1.6f, 0.5f);
+            _checkGlowTexture.Width = 128;
+            _checkGlowTexture.Height = 128;
 
             // TopLevel = true -> GridContainer ovaj cvor izuzima iz svog auto-layout-a
             // (potvrdjeno Godot 4 ponasanje), pa mozemo slobodno da mu postavljamo
@@ -63,6 +77,14 @@ namespace ChessPuzzles2d.Views
 
             EnsurePiecesLayer();
             // SyncPiecesLayerTransform();
+
+            int checkKingRow = -1, checkKingCol = -1;
+            if (boardState.IsInCheck(boardState.CurrentTurn))
+            {
+                var kingPos = boardState.GetKingPosition(boardState.CurrentTurn);
+                checkKingRow = kingPos.row;
+                checkKingCol = kingPos.col;
+            }
 
             HashSet<string> validSquares = new HashSet<string>();
             if (selectedRow != -1 && selectedCol != -1)
@@ -178,6 +200,27 @@ namespace ChessPuzzles2d.Views
                     }
 
                     background.Color = cellColor;
+                    TextureRect glow = background.HasNode("CheckGlow") ? background.GetNode<TextureRect>("CheckGlow") : null;
+
+                    if (r == checkKingRow && c == checkKingCol)
+                    {
+                        if (glow == null)
+                        {
+                            glow = new TextureRect();
+                            glow.Name = "CheckGlow";
+                            glow.Texture = _checkGlowTexture;
+                            glow.MouseFilter = Control.MouseFilterEnum.Ignore;
+                            glow.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+                            background.AddChild(glow);
+                        }
+                        glow.Size = new Vector2(tileSize, tileSize);
+                        glow.Position = Vector2.Zero;
+                        glow.Visible = true;
+                    }
+                    else if (glow != null)
+                    {
+                        glow.Visible = false;
+                    }
 
                     // Figura ide u PiecesLayer, pixel-pozicionirana — NE kao dete
                     // GridContainer celije (izbegava auto-layout snap-back problem).
