@@ -155,6 +155,20 @@ namespace ChessPuzzles2d.Services
                     RefreshDisplay(); return;
                 }
 
+                if (clickedPiece != ".")
+                {
+                    bool isWhitePiece = char.IsUpper(clickedPiece[0]);
+                    bool isWhiteTurn = _boardState.CurrentTurn == ChessDotNet.Player.White;
+                    bool isOwnPiece = (isWhiteTurn && isWhitePiece) || (!isWhiteTurn && !isWhitePiece);
+
+                    if (isOwnPiece)
+                    {
+                        _selectedRow = row; _selectedCol = col;
+                        RefreshDisplay();
+                        return;
+                    }
+                }
+
                 int fromRow = _selectedRow, fromCol = _selectedCol;
 
                 string illegalReason;

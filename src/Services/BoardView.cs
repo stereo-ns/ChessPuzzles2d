@@ -173,7 +173,7 @@ namespace ChessPuzzles2d.Views
 
                     if (validSquares.Contains($"{r},{c}") && ((isWhiteTurn && isBlackPiece) || (isBlackTurn && isWhitePiece)))
                     {
-                        Color attackOverlay = new Color(0.9f, 0.3f, 0.3f, 0.5f);
+                        Color attackOverlay = new Color(0.85f, 0.25f, 0.25f, 0.85f);
                         cellColor = cellColor.Blend(attackOverlay);
                     }
 
